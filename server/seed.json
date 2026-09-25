@@ -1,0 +1,39 @@
+{
+  "brand": "Med Amin Gnichi",
+  "role": "AI Engineer · RAG · Applied ML",
+  "headline": "Useful AI. Built to hold up.",
+  "intro": "I build document intelligence and LLM systems that turn messy information into answers people can trust, with evaluation, access controls, and real workflows behind them.",
+  "availability": "Open to remote AI engineering opportunities",
+  "location": "Tunisia · Remote",
+  "about": "Freelance AI engineer at .FLOW building a legal document assistant with retrieval, OCR, semantic caching, and evaluation. I enjoy the full path from source data to a measured, dependable product experience.",
+  "email": "gnichimedamine@gmail.com",
+  "linkedin": "https://www.linkedin.com/in/med-amine-gnichi",
+  "github": "https://github.com/medamine1920",
+  "otherLinks": [],
+  "resume": "/resume.pdf",
+  "contactHeadline": "Building something that needs to work?",
+  "contactText": "I’m interested in AI engineering opportunities and teams working on document intelligence, retrieval, and reliable LLM products.",
+  "stats": [
+    {"id":"lookup","value":"~55%","label":"faster legal document lookup"},
+    {"id":"eval","value":"500+","label":"labeled questions in retrieval evaluation"},
+    {"id":"hours","value":"250+","label":"hours of annual manual work removed"},
+    {"id":"stockouts","value":"40%","label":"fewer peak-period stockouts"}
+  ],
+  "projects": [
+    {"id":"legal-rag","category":"DOCUMENT AI","name":"Legal knowledge, made searchable","summary":"A production RAG assistant for legal documents. OCR makes scanned PDFs retrievable; semantic search and caching reduce repeated calls. Multi-user sessions, role-based access, audit visibility, logging, and a labeled evaluation set support reliable use.","result":"~55% faster document lookup","tags":["FastAPI","Gemini","FAISS","Cassandra","OCR","Docker"],"image":"","imageAlt":"","link":"","featured":true},
+    {"id":"enterprise-rag","category":"ENTERPRISE AI","name":"Answers grounded in enterprise files","summary":"Built multi-format ingestion and retrieval for PDFs, images, and Excel files, connecting chunking, embeddings, and semantic search to backend chatbot workflows.","result":"","tags":["Azure OpenAI","RAG","Embeddings","Document pipelines"],"image":"","imageAlt":"","link":"","featured":false},
+    {"id":"forecasting","category":"APPLIED ML","name":"Better decisions from noisy data","summary":"Built forecasting and reporting systems across supply chain and growth operations, from stock-level prediction to customer cohorts and media-efficiency models.","result":"40% fewer peak-period stockouts","tags":["Python","Regression","SQL","Dashboards"],"image":"","imageAlt":"","link":"","featured":false}
+  ],
+  "experience": [
+    {"id":"flow","period":"Mar 2025 — Present","role":"Freelance AI Engineer","company":".FLOW","description":"Building a RAG platform with OCR, semantic retrieval, caching, access controls, and a 500+ question evaluation framework."},
+    {"id":"impactve","period":"Apr 2023 — Jun 2024","role":"Founding Data Lead","company":"Impactve","description":"Owned forecasting, analytics, AI knowledge workflows, and reporting that reduced manual work and supported growth decisions."},
+    {"id":"alight","period":"Oct 2022 — Mar 2023","role":"AI Engineer Intern","company":"Alight MEA","description":"Built document ingestion and RAG components for an Azure-based enterprise AI platform."},
+    {"id":"sagemcom","period":"Feb — Jun 2021","role":"ML Engineer Intern","company":"SagemCom","description":"Built inventory forecasting models and monitoring pipelines, helping reduce stockouts by 25%."},
+    {"id":"cipi","period":"Jan — Feb 2020","role":"Software Developer Intern","company":"Cipi-Actia","description":"Built a quality monitoring platform for production defects, with searchable records, classification logic, and statistical reporting."}
+  ],
+  "education": [
+    {"id":"tekup","period":"Graduated Nov 2025","role":"BS in Data Science Engineering, with honors","company":"TEK-UP","description":"Private College of Engineering & Technology"},
+    {"id":"iset","period":"2018 — 2021","role":"Associate Degree in Information Systems Development, with honors","company":"ISET","description":"Higher Institute of Technological Studies"}
+  ],
+  "skills": ["Python","FastAPI","RAG","Azure OpenAI","Gemini","FAISS","AstraDB","Cassandra","OCR","Docker","SQL","scikit-learn","Evaluation","RBAC"]
+}
