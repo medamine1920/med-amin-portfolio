@@ -1,0 +1,10 @@
+[Unit]
+Description=Update the portfolio from ghcr.io if a new image was published
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+# Set this to the folder that holds compose.caddy.yaml, .env and data/.
+WorkingDirectory=/srv/portfolio
+ExecStart=/usr/bin/env bash deploy/update.sh

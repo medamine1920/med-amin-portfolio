@@ -1,6 +1,7 @@
 services:
   studio:
-    build: .
+    # Built and published by .github/workflows/publish.yml; deploy/update.sh pulls new versions.
+    image: ghcr.io/medamine1920/med-amin-portfolio:latest
     restart: unless-stopped
     init: true
     ports:
