@@ -60,15 +60,29 @@ docker compose start
 
 Keep this archive private because it contains contact messages. To restore, stop the container, replace `data/` from a known-good archive, then start it.
 
+## Notifications (Telegram)
+
+The server can message you on Telegram for every contact-form message, every new visitor (one alert per anonymous visitor per day, at most 30 an hour), and a daily digest. Visits are counted without cookies: the visitor id is a hash of address and browser with a salt that changes every day, and only the referring site's host is stored. Bots and your own signed-in visits are ignored.
+
+1. In Telegram, message `@BotFather`, send `/newbot`, and copy the token.
+2. Send any message to your bot, open `https://api.telegram.org/bot<TOKEN>/getUpdates`, and copy `chat.id`.
+3. Add `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` to `.env`. Optional: `TELEGRAM_VISITS=each|digest|off` and `TELEGRAM_DIGEST_HOUR` (UTC).
+4. Behind Caddy, also set `TRUST_PROXY=true` so visitors (and rate limits) use the real client address.
+5. Restart the container, then use **/admin → Insights → Send test notification**.
+
+The Insights tab also shows visitors per day, top sources, and recent visits.
+
 ## Local development
 
 Requires Node 24+. Run `npm ci`, copy `.env.example` to `.env`, set the secret and password, then `npm run build` and `npm start`. For live UI edits, run `npm run dev` in another terminal; Vite proxies API calls to port 3000. Run `npm test` for the backend flow. After editing React or CSS, run `npm run build` before deploying; Docker serves the resulting `dist/`.
 
 ## Files
 
-- `src/main.jsx` — public React site and admin editor
-- `src/styles.css` — responsive styling
-- `server/index.js` — API, authentication, SQLite, uploads, static serving
+- `src/main.jsx` — entry; loads the public site, or lazy-loads the editor on `/admin`
+- `src/site/Site.jsx`, `src/site/motion.js`, `src/site/site.css` — public site, motion helpers, styles
+- `src/admin.jsx`, `src/styles.css` — editor (incl. Insights) and its styles
+- `server/index.js` — API, authentication, SQLite, uploads, visits, static serving
+- `server/notify.js` — Telegram notifications and visitor helpers
 - `server/seed.json` — initial portfolio content (used only when the database is first created)
 - `server/seed-resume.pdf` — initial resume PDF
 - `data/` — durable database and uploaded files; excluded from source archives
