@@ -1,4 +1,4 @@
-# The included dist/ is built before upload, keeping deployment light on the CX23.
+# dist/ is built before deploying, so the image needs no npm install.
 FROM node:24-alpine
 ENV NODE_ENV=production PORT=3000 DATA_DIR=/app/data
 WORKDIR /app

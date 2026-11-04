@@ -4,7 +4,7 @@ services:
     restart: unless-stopped
     init: true
     ports:
-      # Private staging only. Access through an SSH tunnel over Tailscale.
+      # Bound to loopback only; not reachable from outside the host.
       - "127.0.0.1:8080:3000"
     env_file: .env
     volumes:
