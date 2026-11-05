@@ -351,43 +351,130 @@ function SectionHead({ eyebrow, title, children }) {
   );
 }
 
-// "~55% faster document lookup" → ["~55%", "faster document lookup"], for the featured card's big number.
+// "~55% faster document lookup" → ["~55%", "faster document lookup"], for big result numbers.
 const bigResult = text => { const m = String(text || '').match(/^(\S*\d\S*)\s+(.+)$/); return m ? [m[1], m[2]] : null; };
+const paras = text => String(text || '').split(/\n\s*\n/).map(x => x.trim()).filter(Boolean);
+const hostOf = url => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } };
+const projectHash = p => 'project-' + p.id;
+const count = (i, n) => `${String(i + 1).padStart(2, '0')} / ${String(n).padStart(2, '0')}`;
+
+const GitHubIcon = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.53-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.41-2.69 5.39-5.25 5.67.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z" /></svg>
+);
+
+// A screenshot inside a browser-window frame. Without a screenshot it shows the project's own pipeline or
+// result, so the card never looks empty or fake.
+function BrowserFrame({ p, large = false }) {
+  const big = bigResult(p.result);
+  return (
+    <div className={'browser' + (large ? ' is-large' : '')}>
+      <div className="browser-bar" aria-hidden="true"><i /><i /><i /><span>{hostOf(p.link) || hostOf(p.repo) || p.category || 'project'}</span></div>
+      <div className="browser-view">
+        {p.image
+          ? <img src={p.image} alt={p.imageAlt || `Screenshot of ${p.name}`} loading="lazy" />
+          : (
+            <div className="browser-placeholder" aria-hidden="true">
+              {p.flow?.length >= 2
+                ? <Flow steps={p.flow} />
+                : big
+                  ? <div className="placeholder-stat"><strong>{big[0]}</strong><span>{big[1]}</span></div>
+                  : <div className="placeholder-mark">{initials(p.name)}</div>}
+            </div>
+          )}
+      </div>
+    </div>
+  );
+}
+
+function Tags({ items, label, kind }) {
+  if (!items?.length) return null;
+  return <ul className={'pills pills-' + kind} aria-label={label}>{items.map((t, j) => <li key={j}>{t}</li>)}</ul>;
+}
 
 const resetTilt = e => { e.currentTarget.style.setProperty('--px', '0'); e.currentTarget.style.setProperty('--py', '0'); };
 
-function Project({ p, i }) {
-  const [open, setOpen] = useState(false);
-  const big = !p.image && p.featured && bigResult(p.result);
-  const paragraphs = (p.details || '').split(/\n\s*\n/).map(x => x.trim()).filter(Boolean);
-  const caseId = 'case-' + p.id;
+function ProjectCard({ p, i, n }) {
   return (
-    <article className={'project' + (p.featured ? ' is-featured' : '') + (open ? ' is-open' : '')} onPointerMove={trackPointer} onPointerLeave={resetTilt} data-reveal style={{ '--d': (i % 2) * 0.08 + 's' }}>
-      <div className="project-body">
-        <div className="project-meta">
-          <span>{String(i + 1).padStart(2, '0')} — {p.category}</span>
-          {p.featured && <span className="badge">Featured</span>}
-        </div>
-        <h3>{p.name}</h3>
-        <p>{p.summary}</p>
+    <article className={'pcard' + (p.featured ? ' is-featured' : '')} onPointerMove={trackPointer} onPointerLeave={resetTilt} data-reveal style={{ '--d': (i % 2) * 0.08 + 's' }}>
+      <div className="pcard-top">
+        <span className="pcard-kind"><span className="pcard-dot" aria-hidden="true" />{p.featured ? 'Featured project' : p.category || 'Project'}</span>
+        <span className="pcard-count" aria-hidden="true">{count(i, n)}</span>
+      </div>
+      <div className="pcard-media">
+        {p.period && <span className="pill-date">{p.period}</span>}
+        <BrowserFrame p={p} />
+      </div>
+      <div className="pcard-body">
+        <h3><a href={'#' + projectHash(p)} className="pcard-title">{p.name}</a></h3>
+        {(p.subtitle || p.category) && <p className="pcard-sub">{p.subtitle || p.category}</p>}
+        {p.summary && <p className="pcard-summary">{p.summary}</p>}
         {p.result && <p className="result"><span aria-hidden="true">↗</span> {p.result}</p>}
-        {p.flow?.length >= 2 && <Flow steps={p.flow} />}
-        {paragraphs.length > 0 && (
-          <div className="case" id={caseId} inert={!open}>
-            <div className="case-inner">{paragraphs.map((t, j) => <p key={j}>{t}</p>)}</div>
-          </div>
-        )}
-        <div className="project-foot">
-          <ul className="tags" aria-label="Technologies">{p.tags?.map((t, j) => <li key={j}>{t}</li>)}</ul>
-          <div className="project-actions">
-            {paragraphs.length > 0 && <button type="button" className="case-toggle" aria-expanded={open} aria-controls={caseId} onClick={() => setOpen(o => !o)}>{open ? 'Close case study' : 'Read case study'} <span aria-hidden="true">+</span></button>}
-            {p.link && external(p.link) && <a className="project-link" href={p.link} target="_blank" rel="noopener noreferrer">View project <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span></a>}
-          </div>
+        <Tags items={p.domains} label="Topics" kind="topic" />
+        <Tags items={p.tags} label="Technologies" kind="tech" />
+        <div className="pcard-actions">
+          <a className="button ghost small" href={'#' + projectHash(p)} data-magnetic>View details<span className="sr-only">: {p.name}</span> <span aria-hidden="true">→</span></a>
+          {p.repo && external(p.repo) && <a className="icon-link" href={p.repo} target="_blank" rel="noopener noreferrer" aria-label={`Source code of ${p.name} on GitHub (opens in a new tab)`} data-magnetic><GitHubIcon /></a>}
+          {p.link && external(p.link) && <a className="icon-link" href={p.link} target="_blank" rel="noopener noreferrer" aria-label={`Live demo of ${p.name} (opens in a new tab)`} data-magnetic><span aria-hidden="true">↗</span></a>}
         </div>
       </div>
-      {p.image
-        ? <div className="project-shot"><img src={p.image} alt={p.imageAlt || `Screenshot of ${p.name}`} loading="lazy" /></div>
-        : big && <div className="project-aside" aria-hidden="true"><CountUp value={big[0]} /><span>{big[1]}</span></div>}
+    </article>
+  );
+}
+
+function DetailSection({ title, text }) {
+  const list = paras(text);
+  if (!list.length) return null;
+  return <section className="pdetail-section"><h4>{title}</h4>{list.map((t, j) => <p key={j}>{t}</p>)}</section>;
+}
+
+function ProjectDetail({ p, i, projects }) {
+  const n = projects.length, prev = projects[(i - 1 + n) % n], next = projects[(i + 1) % n];
+  const big = bigResult(p.result);
+  const hasBody = p.problem || p.decisions || p.constraints || p.features?.length || p.details || p.flow?.length >= 2;
+  return (
+    <article className="pdetail" id={projectHash(p)} aria-labelledby={projectHash(p) + '-title'}>
+      <a className="back-link" href="#work"><span aria-hidden="true">←</span> Back to projects</a>
+      <header className="pdetail-head">
+        <div className="pdetail-meta">
+          <span className="pill-date">{count(i, n)}</span>
+          {p.period && <span className="pill-date">{p.period}</span>}
+          {p.category && <span className="pdetail-cat">{p.category}</span>}
+        </div>
+        <h3 id={projectHash(p) + '-title'}>{p.name}</h3>
+        {p.subtitle && <p className="pcard-sub">{p.subtitle}</p>}
+        <div className="pdetail-links">
+          {p.repo && external(p.repo) && <a className="button ghost small" href={p.repo} target="_blank" rel="noopener noreferrer" data-magnetic><GitHubIcon /> View source<span className="sr-only"> (opens in a new tab)</span></a>}
+          {p.link && external(p.link) && <a className="button primary small" href={p.link} target="_blank" rel="noopener noreferrer" data-magnetic>Live demo <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span></a>}
+        </div>
+      </header>
+      {p.image && <BrowserFrame p={p} large />}
+      <div className="pdetail-grid">
+        <div className="pdetail-main">
+          {p.summary && <p className="pdetail-lead">{p.summary}</p>}
+          {hasBody ? (
+            <>
+              <DetailSection title="The problem" text={p.problem} />
+              {p.flow?.length >= 2 && <section className="pdetail-section"><h4>How it works</h4><Flow steps={p.flow} /></section>}
+              <DetailSection title="Decisions & trade-offs" text={p.decisions} />
+              <DetailSection title="Constraints" text={p.constraints} />
+              {p.features?.length > 0 && <section className="pdetail-section"><h4>Key features</h4><ul className="feature-list">{p.features.map((f, j) => <li key={j}>{f}</li>)}</ul></section>}
+              <DetailSection title="Notes" text={p.details} />
+            </>
+          ) : null}
+        </div>
+        <aside className="pdetail-side">
+          {big && <div className="side-stat"><strong>{big[0]}</strong><span>{big[1]}</span></div>}
+          {!big && p.result && <div className="side-stat"><span>{p.result}</span></div>}
+          {p.tags?.length > 0 && <div className="side-block"><h4>Technology stack</h4><Tags items={p.tags} label="Technologies" kind="tech" /></div>}
+          {p.domains?.length > 0 && <div className="side-block"><h4>Topics</h4><Tags items={p.domains} label="Topics" kind="topic" /></div>}
+        </aside>
+      </div>
+      {n > 1 && (
+        <nav className="pdetail-nav" aria-label="More projects">
+          <a href={'#' + projectHash(prev)}><small>Previous</small><span><span aria-hidden="true">← </span>{prev.name}</span></a>
+          <a href={'#' + projectHash(next)} className="is-next"><small>Next</small><span>{next.name}<span aria-hidden="true"> →</span></span></a>
+        </nav>
+      )}
     </article>
   );
 }
@@ -406,14 +493,40 @@ function Flow({ steps }) {
   );
 }
 
+// The grid and the details view share one section; the URL hash (#project-<id>) says which project is open,
+// so details links can be shared and the browser Back button returns to the grid.
+function useOpenProject(projects) {
+  const find = () => { const h = decodeURIComponent(location.hash.slice(1)); return projects.find(p => projectHash(p) === h)?.id || null; };
+  const [openId, setOpenId] = useState(find);
+  const first = useRef(true);
+  useEffect(() => {
+    const onHash = () => setOpenId(find());
+    addEventListener('hashchange', onHash);
+    return () => removeEventListener('hashchange', onHash);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projects]);
+  useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    // The browser tried to scroll before React rendered the view; scroll to the right place now.
+    const target = document.getElementById(openId ? 'project-' + openId : 'work');
+    target?.scrollIntoView({ behavior: reducedMotion() ? 'instant' : 'smooth' });
+  }, [openId]);
+  return openId;
+}
+
 function Work({ projects = [] }) {
+  const openId = useOpenProject(projects);
+  const root = useRef(null);
+  // Newly shown cards (after closing a detail view) need their reveal state again.
+  useReveal(root, [openId]);
   if (!projects.length) return null;
+  const i = projects.findIndex(p => p.id === openId);
   return (
-    <section className="section container" id="work">
-      <SectionHead eyebrow="Selected work" title="Systems with a job to do.">Applied AI and data engineering, each with a measured outcome.</SectionHead>
-      <div className="projects">
-        {projects.map((p, i) => <Project key={p.id} p={p} i={i} />)}
-      </div>
+    <section className="section container" id="work" ref={root}>
+      <SectionHead eyebrow="Selected work" title="Systems with a job to do.">Applied AI and data engineering. Open any project for the problem, the decisions and the results.</SectionHead>
+      {i >= 0
+        ? <ProjectDetail key={openId} p={projects[i]} i={i} projects={projects} />
+        : <div className="pgrid">{projects.map((p, k) => <ProjectCard key={p.id} p={p} i={k} n={projects.length} />)}</div>}
     </section>
   );
 }

@@ -69,9 +69,13 @@ test('admin draft isolation, publish, contact inbox and upload authorization',as
   const upload=await fetch(base+'/api/admin/upload',{method:'POST',headers:{...auth,'Content-Type':'image/png'},body:png});assert.equal(upload.status,201);
   const {url:mediaUrl}=await upload.json();assert.equal((await fetch(base+mediaUrl)).status,404);
   const next=await (await fetch(base+'/api/admin/draft',{headers:auth})).json();next.content.projects[0].image=mediaUrl;
+  Object.assign(next.content.projects[0],{period:'Oct 2026',subtitle:'One line',domains:['Agents',''],repo:'https://github.com/x/y',problem:'Why',decisions:'How',constraints:'Limits',features:['A','B'],link:'javascript:alert(1)'});
   assert.equal((await fetch(base+'/api/admin/draft',{method:'PUT',headers:{...auth,'Content-Type':'application/json'},body:JSON.stringify({content:next.content,revision:next.revision})})).status,200);
   assert.equal((await fetch(base+'/api/admin/publish',{method:'POST',headers:auth})).status,200);
   assert.equal((await fetch(base+mediaUrl)).status,200);
+  const p0=(await (await fetch(base+'/api/site')).json()).content.projects[0];
+  assert.deepEqual([p0.period,p0.subtitle,p0.domains,p0.repo,p0.problem,p0.decisions,p0.constraints,p0.features],['Oct 2026','One line',['Agents'],'https://github.com/x/y','Why','How','Limits',['A','B']]);
+  assert.equal(p0.link,'','non-http links are dropped');
   const html=await (await fetch(base+'/')).text();assert.match(html,/assets\/index-/);assert.match(html,/Selected work/);
   assert.equal((await fetch(base+'/api/admin/logout',{method:'POST',headers:auth})).status,200);
   assert.equal((await fetch(base+'/api/admin/draft',{headers:auth})).status,401);

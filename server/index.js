@@ -54,7 +54,9 @@ const sanitize = input => {
   out.otherLinks=clampList(input.otherLinks,10).map(x=>({id:isStr(x.id,80)||randomUUID(),label:isStr(x.label,60),url:cleanUrl(x.url)})).filter(x=>x.label&&x.url);
   out.resume=mediaUrl(input.resume)||'/resume.pdf';
   out.stats=clampList(input.stats,12).map(x=>({id:isStr(x.id,80)||randomUUID(),value:isStr(x.value,40),label:isStr(x.label,150)}));
-  out.projects=clampList(input.projects,30).map(x=>({id:isStr(x.id,80)||randomUUID(),category:isStr(x.category,80),name:isStr(x.name,160),summary:isStr(x.summary,2500),result:isStr(x.result,180),tags:clampList(x.tags,16).map(t=>isStr(t,45)).filter(Boolean),image:mediaUrl(x.image),imageAlt:isStr(x.imageAlt,180),link:cleanUrl(x.link),featured:x.featured===true,flow:clampList(x.flow,6).map(t=>isStr(t,40)).filter(Boolean),details:isStr(x.details,5000)}));
+  out.projects=clampList(input.projects,30).map(x=>({id:isStr(x.id,80)||randomUUID(),category:isStr(x.category,80),name:isStr(x.name,160),summary:isStr(x.summary,2500),result:isStr(x.result,180),tags:clampList(x.tags,16).map(t=>isStr(t,45)).filter(Boolean),image:mediaUrl(x.image),imageAlt:isStr(x.imageAlt,180),link:cleanUrl(x.link),featured:x.featured===true,flow:clampList(x.flow,6).map(t=>isStr(t,40)).filter(Boolean),details:isStr(x.details,5000),
+   period:isStr(x.period,60),subtitle:isStr(x.subtitle,140),domains:clampList(x.domains,8).map(t=>isStr(t,40)).filter(Boolean),repo:cleanUrl(x.repo),
+   problem:isStr(x.problem,2500),decisions:isStr(x.decisions,3000),constraints:isStr(x.constraints,2500),features:clampList(x.features,12).map(t=>isStr(t,240)).filter(Boolean)}));
   const entries=xs=>clampList(xs,40).map(x=>({id:isStr(x.id,80)||randomUUID(),period:isStr(x.period,90),role:isStr(x.role,150),company:isStr(x.company,150),description:isStr(x.description,1200)}));
   out.experience=entries(input.experience);out.education=entries(input.education);
   out.skills=clampList(input.skills,80).map(x=>isStr(x,80)).filter(Boolean);
