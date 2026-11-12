@@ -89,8 +89,8 @@ function AssistantTab({data,change,stats}){
  const s=stats?.assistant;
  return <div className="admin-panels">
   <section className="admin-section"><div className="admin-section-head"><div><h2>AI assistant</h2><p>Answers visitors' questions about you, using only your published content and the notes below. Changes here go live when you Publish.</p></div><span className={'status-pill '+(s?.available?'on':'off')}>{s?.demo?'Demo mode':s?.available?'Connected':'No API key'}</span></div>
-   {s&&!s.available&&<ol className="setup-steps"><li>Create an API key at <code>platform.claude.com</code> → API keys, and set a monthly spend limit there.</li><li>On the server, add <code>ANTHROPIC_API_KEY=…</code> to <code>.env</code> and restart. Until then the chat button stays hidden.</li></ol>}
-   {s?.available&&<p className="subtle">Model {s.model}. {s.usedToday} of {s.dailyLimit} messages used today (daily cost guard), {s.conversationsToday} conversation{s.conversationsToday===1?'':'s'} today.</p>}
+   {s&&!s.available&&<ol className="setup-steps"><li>Create an API key: Groq at <code>console.groq.com</code> → API Keys, or Anthropic at <code>platform.claude.com</code> → API keys (set a spend limit there).</li><li>On the server, add <code>GROQ_API_KEY=…</code> or <code>ANTHROPIC_API_KEY=…</code> to <code>.env</code> and restart. Until then Parker and the chat stay hidden.</li></ol>}
+   {s?.available&&<p className="subtle">{s.provider==='groq'?'Groq':s.provider==='anthropic'?'Anthropic':'Demo'} · model {s.model}. {s.usedToday} of {s.dailyLimit} messages used today (daily cost guard), {s.conversationsToday} conversation{s.conversationsToday===1?'':'s'} today.</p>}
    <label className="check-field"><input type="checkbox" checked={a.enabled} onChange={e=>set('enabled',e.target.checked)}/> Show the assistant on the public site</label>
    <label className="check-field"><input type="checkbox" checked={a.avatar!==false} onChange={e=>set('avatar',e.target.checked)}/> Show the walking cartoon avatar (uses your portrait from Overview as its face)</label>
    <div className="form-grid" style={{marginTop:18}}>

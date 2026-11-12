@@ -56,7 +56,7 @@ test('assistant streams grounded replies, logs conversations, alerts once, valid
  const sent=[];const tg=createServer((req,res)=>{let b='';req.on('data',c=>b+=c);req.on('end',()=>{sent.push(JSON.parse(b));res.writeHead(200,{'Content-Type':'application/json'});res.end('{"ok":true}')})});
  await new Promise(r=>claude.listen(0,'127.0.0.1',r));await new Promise(r=>tg.listen(0,'127.0.0.1',r));
  const dir=await mkdtemp(join(tmpdir(),'portfolio-test-'));const port=34000+Math.floor(Math.random()*1000);
- const proc=spawn(process.execPath,['server/index.js'],{cwd:join(import.meta.dirname,'..'),env:{...process.env,PORT:String(port),DATA_DIR:dir,SESSION_SECRET:'test-secret-0123456789abcdef0123456789abcdef',ADMIN_PASSWORD:password,ANTHROPIC_API_KEY:'test-key',ANTHROPIC_BASE_URL:`http://127.0.0.1:${claude.address().port}`,ASSISTANT_MODEL:'',TELEGRAM_BOT_TOKEN:'1:t',TELEGRAM_CHAT_ID:'9',TELEGRAM_API_BASE:`http://127.0.0.1:${tg.address().port}`},stdio:'pipe'});
+ const proc=spawn(process.execPath,['server/index.js'],{cwd:join(import.meta.dirname,'..'),env:{...process.env,PORT:String(port),DATA_DIR:dir,SESSION_SECRET:'test-secret-0123456789abcdef0123456789abcdef',ADMIN_PASSWORD:password,GROQ_API_KEY:'',ANTHROPIC_API_KEY:'test-key',ANTHROPIC_BASE_URL:`http://127.0.0.1:${claude.address().port}`,ASSISTANT_MODEL:'',TELEGRAM_BOT_TOKEN:'1:t',TELEGRAM_CHAT_ID:'9',TELEGRAM_API_BASE:`http://127.0.0.1:${tg.address().port}`},stdio:'pipe'});
  const base=`http://127.0.0.1:${port}`;const ask=body=>fetch(base+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json','User-Agent':'Mozilla/5.0 Chrome/130.0'},body:JSON.stringify(body)});
  try{
   for(let i=0;i<40;i++){try{await fetch(base+'/api/site');break}catch{await wait(50)}}
@@ -83,9 +83,29 @@ test('assistant streams grounded replies, logs conversations, alerts once, valid
  }finally{await stop(proc);claude.close();tg.close();await rm(dir,{recursive:true,force:true})}
 });
 
+test('assistant works with a Groq key (OpenAI-compatible streaming)',async()=>{
+ const calls=[];const groq=createServer((req,res)=>{let b='';req.on('data',c=>b+=c);req.on('end',()=>{calls.push({url:req.url,auth:req.headers.authorization,body:JSON.parse(b)});res.writeHead(200,{'Content-Type':'text/event-stream'});
+  const send=o=>res.write(`data: ${JSON.stringify(o)}\n\n`);
+  send({choices:[{index:0,delta:{role:'assistant',content:''}}]});send({choices:[{index:0,delta:{content:'Hi from '}}]});send({choices:[{index:0,delta:{content:'Groq'},finish_reason:null}]});send({choices:[{index:0,delta:{},finish_reason:'stop'}]});res.write('data: [DONE]\n\n');res.end()})});
+ await new Promise(r=>groq.listen(0,'127.0.0.1',r));
+ const dir=await mkdtemp(join(tmpdir(),'portfolio-test-'));const port=35000+Math.floor(Math.random()*1000);
+ const proc=spawn(process.execPath,['server/index.js'],{cwd:join(import.meta.dirname,'..'),env:{...process.env,PORT:String(port),DATA_DIR:dir,SESSION_SECRET:'test-secret-0123456789abcdef0123456789abcdef',ADMIN_PASSWORD:password,ANTHROPIC_API_KEY:'',ASSISTANT_DEMO:'',ASSISTANT_MODEL:'',GROQ_API_KEY:'gsk_test',GROQ_API_BASE:`http://127.0.0.1:${groq.address().port}/openai/v1`},stdio:'pipe'});
+ const base=`http://127.0.0.1:${port}`;
+ try{
+  for(let i=0;i<40;i++){try{await fetch(base+'/api/site');break}catch{await wait(50)}}
+  assert.equal((await (await fetch(base+'/api/site')).json()).assistant.enabled,true);
+  const r=await fetch(base+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conversation:'groq-12345678',messages:[{role:'user',content:'Who is he?'}]})});
+  const lines=(await r.text()).trim().split('\n').map(l=>JSON.parse(l));
+  assert.equal(lines.filter(l=>l.t==='d').map(l=>l.v).join(''),'Hi from Groq');assert.equal(lines.at(-1).t,'done');
+  assert.equal(calls[0].url,'/openai/v1/chat/completions');assert.equal(calls[0].auth,'Bearer gsk_test');
+  assert.equal(calls[0].body.model,'llama-3.3-70b-versatile');assert.equal(calls[0].body.stream,true);
+  assert.equal(calls[0].body.messages[0].role,'system');assert.match(calls[0].body.messages[0].content,/You are Parker/);assert.equal(calls[0].body.messages.at(-1).content,'Who is he?');
+ }finally{await stop(proc);groq.close();await rm(dir,{recursive:true,force:true})}
+});
+
 test('admin draft isolation, publish, contact inbox and upload authorization',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'portfolio-test-'));const port=32000+Math.floor(Math.random()*1000);
- const proc=spawn(process.execPath,['server/index.js'],{cwd:join(import.meta.dirname,'..'),env:{...process.env,PORT:String(port),DATA_DIR:dir,SESSION_SECRET:'test-secret-0123456789abcdef0123456789abcdef',ADMIN_PASSWORD:password,ANTHROPIC_API_KEY:'',ASSISTANT_DEMO:''},stdio:'pipe'});
+ const proc=spawn(process.execPath,['server/index.js'],{cwd:join(import.meta.dirname,'..'),env:{...process.env,PORT:String(port),DATA_DIR:dir,SESSION_SECRET:'test-secret-0123456789abcdef0123456789abcdef',ADMIN_PASSWORD:password,ANTHROPIC_API_KEY:'',GROQ_API_KEY:'',ASSISTANT_DEMO:''},stdio:'pipe'});
  const base=`http://127.0.0.1:${port}`;
  try{
   for(let i=0;i<40;i++){try{await fetch(base+'/api/site');break}catch{await new Promise(r=>setTimeout(r,50))}}

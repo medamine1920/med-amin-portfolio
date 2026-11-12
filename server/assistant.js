@@ -1,17 +1,23 @@
 // Portfolio assistant: answers visitors' questions about the portfolio owner, grounded only in the
-// published content. Uses the Claude API through the official SDK, streaming text to the browser.
+// published content. Streams text to the browser from one of two providers:
+//   - Anthropic (Claude API, official SDK) when ANTHROPIC_API_KEY is set
+//   - Groq (OpenAI-compatible chat completions API) when GROQ_API_KEY is set
+// If both are set, Anthropic is used.
 //
 // Configuration (environment):
-//   ANTHROPIC_API_KEY       enables the assistant (without it, and without demo mode, it is hidden)
-//   ASSISTANT_MODEL         default claude-opus-5-5
+//   ANTHROPIC_API_KEY / GROQ_API_KEY   enables the assistant (without one, and without demo mode, it is hidden)
+//   ASSISTANT_MODEL         default claude-opus-5-5 (Anthropic) or llama-3.3-70b-versatile (Groq)
 //   ASSISTANT_DAILY_LIMIT   max visitor messages per day across everyone (cost guard), default 400
 //   ASSISTANT_DEMO=true     local preview without a key: canned answers built from the content
 import Anthropic from '@anthropic-ai/sdk';
 
 const apiKey = process.env.ANTHROPIC_API_KEY || '';
-export const assistantModel = process.env.ASSISTANT_MODEL || 'claude-opus-5-5';
-export const demoMode = !apiKey && process.env.ASSISTANT_DEMO === 'true';
-export const assistantAvailable = Boolean(apiKey) || demoMode;
+const groqKey = apiKey ? '' : (process.env.GROQ_API_KEY || '');
+const groqBase = (process.env.GROQ_API_BASE || 'https://api.groq.com/openai/v1').replace(/\/$/, '');
+export const assistantProvider = apiKey ? 'anthropic' : groqKey ? 'groq' : '';
+export const assistantModel = process.env.ASSISTANT_MODEL || (groqKey ? 'llama-3.3-70b-versatile' : 'claude-opus-5-5');
+export const demoMode = !assistantProvider && process.env.ASSISTANT_DEMO === 'true';
+export const assistantAvailable = Boolean(assistantProvider) || demoMode;
 export const dailyLimit = Math.max(1, Number.parseInt(process.env.ASSISTANT_DAILY_LIMIT || '400', 10) || 400);
 
 // Only build a client from an explicit key, so the server never picks up some other credential by accident.
@@ -90,6 +96,7 @@ ${s.facts || '(none)'}
 // Streams the reply as text deltas through onText; resolves with { text, stopReason }.
 export async function streamReply({ content, messages, onText, signal }) {
   if (demoMode) return demoReply(content, messages.at(-1).content, onText, signal);
+  if (assistantProvider === 'groq') return groqReply({ content, messages, onText, signal });
   const stream = client.beta.messages.stream({
     model: assistantModel,
     max_tokens: 2000,
@@ -104,6 +111,45 @@ export async function streamReply({ content, messages, onText, signal }) {
   const message = await stream.finalMessage();
   const text = message.content.filter(b => b.type === 'text').map(b => b.text).join('');
   return { text, stopReason: message.stop_reason };
+}
+
+// ---- Groq (OpenAI-compatible chat completions, streamed as server-sent events) ----------------
+async function groqReply({ content, messages, onText, signal }) {
+  const res = await fetch(`${groqBase}/chat/completions`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${groqKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: assistantModel,
+      stream: true,
+      max_tokens: 700,
+      temperature: 0.6,
+      messages: [{ role: 'system', content: systemPrompt(content) }, ...messages],
+    }),
+    signal: AbortSignal.any([signal, AbortSignal.timeout(60_000)].filter(Boolean)),
+  });
+  if (!res.ok) throw Object.assign(Error(`Groq API error ${res.status}: ${(await res.text()).slice(0, 300)}`), { status: res.status });
+  const reader = res.body.getReader(), decoder = new TextDecoder();
+  let buffer = '', text = '', finish = null;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let nl;
+    while ((nl = buffer.indexOf('\n')) >= 0) {
+      const line = buffer.slice(0, nl).trim(); buffer = buffer.slice(nl + 1);
+      if (!line.startsWith('data:')) continue;
+      const data = line.slice(5).trim();
+      if (data === '[DONE]') continue;
+      let chunk;
+      try { chunk = JSON.parse(data); } catch { continue; }
+      if (chunk.error) throw Object.assign(Error(`Groq stream error: ${chunk.error.message || 'unknown'}`), { status: 502 });
+      const choice = chunk.choices?.[0];
+      const delta = choice?.delta?.content;
+      if (delta) { text += delta; onText(delta); }
+      if (choice?.finish_reason) finish = choice.finish_reason;
+    }
+  }
+  return { text, stopReason: finish === 'length' ? 'max_tokens' : 'end_turn' };
 }
 
 // ---- Demo mode (local preview only) -----------------------------------------------------------

@@ -6,7 +6,7 @@ import { resolve, join, relative, isAbsolute, sep, extname } from 'node:path';
 import { randomUUID, randomBytes, createHmac, scryptSync, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { notifyChat, notifyMessage, notifyVisit, sendTelegram, startDigest, notifySettings, isBot, device, referrerHost, visitorId } from './notify.js';
-import { assistantAvailable, assistantModel, assistantSettings, cleanChatRequest, dailyLimit, demoMode, streamReply } from './assistant.js';
+import { assistantAvailable, assistantModel, assistantProvider, assistantSettings, cleanChatRequest, dailyLimit, demoMode, streamReply } from './assistant.js';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const dataDir = resolve(process.env.DATA_DIR || join(root, 'data'));
@@ -179,7 +179,7 @@ async function handler(req,res){try{
   const referrers=db.prepare(`SELECT referrer host, COUNT(DISTINCT day||visitor) n FROM visits WHERE day>=? AND referrer<>'' GROUP BY referrer ORDER BY n DESC LIMIT 6`).all(since(29));
   const recent=db.prepare('SELECT created_at, path, referrer, device, country FROM visits ORDER BY id DESC LIMIT 12').all();
   const unread=db.prepare('SELECT COUNT(*) n FROM messages WHERE read_at IS NULL').get().n;
-  return json(res,{today:count(today),week:count(since(6)),month:count(since(29)),daily,referrers,recent,unread,notifications:notifySettings,assistant:{available:assistantAvailable,demo:demoMode,model:assistantModel,dailyLimit,usedToday:chatBudget.day===today?chatBudget.used:0,conversationsToday:db.prepare('SELECT COUNT(DISTINCT conversation) n FROM chats WHERE substr(created_at,1,10)=?').get(today).n}});
+  return json(res,{today:count(today),week:count(since(6)),month:count(since(29)),daily,referrers,recent,unread,notifications:notifySettings,assistant:{available:assistantAvailable,demo:demoMode,provider:assistantProvider,model:assistantModel,dailyLimit,usedToday:chatBudget.day===today?chatBudget.used:0,conversationsToday:db.prepare('SELECT COUNT(DISTINCT conversation) n FROM chats WHERE substr(created_at,1,10)=?').get(today).n}});
  }
  if(path==='/api/admin/chats'&&method==='GET'){
   if(!requireAdmin(req,res))return;
