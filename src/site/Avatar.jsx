@@ -13,12 +13,12 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const vw = () => document.documentElement.clientWidth;
 
 // ---- What he says ---------------------------------------------------------------------------------
-function pitch(section, data, first) {
+function pitch(section, data, first, name) {
   const stat = data.stats?.[0];
   const top = data.projects?.find(p => p.featured) || data.projects?.[0];
   const recent = data.experience?.[0];
   switch (section) {
-    case 'top': return { side: 'right', pose: 'wave', lines: [`Hi! I'm the cartoon version of ${first}. The real one is busy building AI that doesn't make things up.`, `Hey 👋 Recruiting? I come with demos, results and zero hallucinations.`] };
+    case 'top': return { side: 'right', pose: 'wave', lines: [`Hi! I'm ${name}, the cartoon version of ${first}. The real one is busy building AI that doesn't make things up.`, `Hey 👋 I'm ${name}. Recruiting? I come with demos, results and zero hallucinations.`] };
     case 'proof': return stat && { side: 'left', pose: 'point', lines: [`${stat.value} ${stat.label}. I'd frame it, but it keeps getting better.`, `See ${stat.value}? Not a typo. I asked twice.`] };
     case 'work': return top && { side: 'left', pose: 'point', lines: [`Start with ${top.name}.${top.result ? ` ${top.result}.` : ''} Want my 30-second pitch?`, `My favourite: ${top.name}. Click "View details" and watch me dunk it.`] };
     case 'approach': return { side: 'right', pose: 'think', lines: [`The trick: code computes every number, the model just explains it.`, `Rule #1: if an AI can't show its work, it doesn't ship.`] };
@@ -114,7 +114,7 @@ function Character({ pose, motion, mood, faceLeft, look }) {
 }
 
 // ---- Behaviour ------------------------------------------------------------------------------------
-export default function Avatar({ data, first, open, mood: chatMood, questions, onOpen, onAsk }) {
+export default function Avatar({ data, first, name = 'Parker', open, mood: chatMood, questions, onOpen, onAsk }) {
   const section = useSection();
   const wrap = useRef(null);
   const pos = useRef({ x: 0, y: 0 });
@@ -233,7 +233,7 @@ export default function Avatar({ data, first, open, mood: chatMood, questions, o
       return () => Object.values(timers.current).forEach(clearTimeout);
     }
     place(vw() + 30, 0);
-    later('enter', 400, async () => { await jumpTo(sideX('right')); setPose('wave'); if (!said.current.has('top')) { said.current.add('top'); speak(pitch('top', data, first).lines[0] + ''); } });
+    later('enter', 400, async () => { await jumpTo(sideX('right')); setPose('wave'); if (!said.current.has('top')) { said.current.add('top'); speak(pitch('top', data, first, name).lines[0] + ''); } });
     return () => Object.values(timers.current).forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -241,7 +241,7 @@ export default function Avatar({ data, first, open, mood: chatMood, questions, o
   // Section pitches (each once per visit), unless a tour is running or the chat is open.
   useEffect(() => {
     if (open || tour >= 0 || section === 'top') return;
-    const p = pitch(section, data, first);
+    const p = pitch(section, data, first, name);
     if (!p) return;
     later('section', 350, async () => {
       if (busy.current) return;
@@ -421,7 +421,7 @@ export default function Avatar({ data, first, open, mood: chatMood, questions, o
             </div>
           </div>
         )}
-        <button type="button" className="av-hit" onClick={onPress} onDoubleClick={onDouble} aria-label={`${first}'s assistant: tour or chat`} title="Click me! (or double-click 😉)">
+        <button type="button" className="av-hit" onClick={onPress} onDoubleClick={onDouble} aria-label={`${name}, ${first}'s assistant: tour or chat`} title="Click me! (or double-click 😉)">
           <Character pose={pose} motion={motion} mood={mood} faceLeft={faceLeft} look={look} />
         </button>
       </div>

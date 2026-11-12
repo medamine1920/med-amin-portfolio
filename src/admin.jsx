@@ -94,7 +94,7 @@ function AssistantTab({data,change,stats}){
    <label className="check-field"><input type="checkbox" checked={a.enabled} onChange={e=>set('enabled',e.target.checked)}/> Show the assistant on the public site</label>
    <label className="check-field"><input type="checkbox" checked={a.avatar!==false} onChange={e=>set('avatar',e.target.checked)}/> Show the walking cartoon avatar (uses your portrait from Overview as its face)</label>
    <div className="form-grid" style={{marginTop:18}}>
-    <Field label="Assistant name" value={a.name} onChange={v=>set('name',v)} hint="Default: “Med Amin's AI assistant”."/>
+    <Field label="Assistant name" value={a.name} onChange={v=>set('name',v)} hint="Default: “Parker”."/>
     <ListField label="Suggested questions (one per line)" value={a.suggestions} onChange={v=>set('suggestions',v)} lines hint="Shown as tappable chips. Section-specific questions are added automatically."/>
     <Field label="Welcome message" value={a.greeting} onChange={v=>set('greeting',v)} area hint="First message visitors see. Leave empty for the default."/>
     <Field label="Notes for the assistant" value={a.facts} onChange={v=>set('facts',v)} area hint="Facts it may share that aren't on the site: notice period, preferred roles, remote/relocation, languages… Visitors can ask about anything you write here."/>

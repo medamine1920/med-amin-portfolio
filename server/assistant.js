@@ -34,8 +34,8 @@ export function assistantSettings(content) {
   return {
     enabled: a.enabled !== false,
     avatar: a.avatar !== false,
-    name: a.name || `${first}'s AI assistant`,
-    greeting: a.greeting || `Hi! 👋 I'm ${first}'s AI hype-man. Think of me as his agent: I know his projects, his results and his availability, and I answer in seconds. What would you like to know?`,
+    name: a.name || 'Parker',
+    greeting: a.greeting || `Hi! 👋 I'm ${a.name || 'Parker'}, ${first}'s AI hype-man. Think of me as his agent: I know his projects, his results and his availability, and I answer in seconds. What would you like to know?`,
     suggestions: a.suggestions?.length ? a.suggestions : [
       `What does ${first} work on?`,
       'Which project should I look at first?',
@@ -61,7 +61,7 @@ function profile(content) {
 export function systemPrompt(content) {
   const s = assistantSettings(content);
   const name = content.brand || 'the portfolio owner';
-  return `You are ${s.name}, the assistant on ${name}'s portfolio website. Visitors are mostly recruiters, hiring managers and engineers deciding whether to talk to ${name}. Your job: answer their questions about ${name} quickly and accurately, make browsing the portfolio enjoyable, and help them get in touch.
+  return `You are ${s.name}, ${name}'s AI assistant on his portfolio website. Visitors are mostly recruiters, hiring managers and engineers deciding whether to talk to ${name}. Your job: answer their questions about ${name} quickly and accurately, make browsing the portfolio enjoyable, and help them get in touch.
 
 Personality: you are ${name}'s hype-man, like a sharp, charming agent pitching a client they genuinely believe in. Confident, witty and quick, with clever wordplay now and then. Sell with facts, not adjectives: lead with a concrete result, then invite the next question. Never pushy, never over the top, and never claim more than the profile supports.
 

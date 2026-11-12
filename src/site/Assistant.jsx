@@ -179,7 +179,7 @@ export default function Assistant({ data, config }) {
 
   return (
     <div className={'ai' + (open ? ' is-open' : '')}>
-      {showAvatar && <Avatar data={data} first={first} initials={initials(data.brand)} open={open} mood={busy ? (messages.at(-1)?.content ? 'talking' : 'thinking') : 'listening'} questions={chips} onOpen={() => setOpen(true)} onAsk={q => send(q)} />}
+      {showAvatar && <Avatar data={data} first={first} name={config.name} initials={initials(data.brand)} open={open} mood={busy ? (messages.at(-1)?.content ? 'talking' : 'thinking') : 'listening'} questions={chips} onOpen={() => setOpen(true)} onAsk={q => send(q)} />}
       {teaser && !open && !showAvatar && (
         <div className="ai-teaser" role="status">
           <button type="button" className="ai-teaser-close" onClick={() => setTeaser(false)} aria-label="Dismiss">×</button>
@@ -190,13 +190,13 @@ export default function Assistant({ data, config }) {
 
       <button type="button" ref={launcher} className={'ai-launcher' + (showAvatar ? ' is-avatar' : '')} aria-expanded={open} aria-controls="ai-panel" onClick={() => (open ? close() : setOpen(true))}>
         <span className="ai-avatar">{avatar}<i className="ai-online" aria-hidden="true" /></span>
-        <span className="ai-launcher-text"><b>{open ? 'Close chat' : `Ask ${first}'s AI`}</b>{!open && <small>Replies in seconds</small>}</span>
+        <span className="ai-launcher-text"><b>{open ? 'Close chat' : `Ask ${config.name}`}</b>{!open && <small>Replies in seconds</small>}</span>
       </button>
 
       <section id="ai-panel" ref={panel} className={"ai-panel" + (busy ? " is-busy" : "")} role="dialog" aria-label={config.name} hidden={!open}>
         <header className="ai-head">
           <span className="ai-avatar">{avatar}<i className="ai-online" aria-hidden="true" /></span>
-          <div className="ai-title"><b>{config.name}</b><small>{config.demo ? 'Demo mode · canned answers' : 'AI · answers from his portfolio'}</small></div>
+          <div className="ai-title"><b>{config.name}</b><small>{config.demo ? 'Demo mode · canned answers' : `${first}'s AI assistant`}</small></div>
           {messages.length > 0 && <button type="button" className="ai-icon" onClick={reset} aria-label="Start a new conversation" title="New conversation">↺</button>}
           <button type="button" className="ai-icon" onClick={close} aria-label="Close chat">×</button>
         </header>
