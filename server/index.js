@@ -5,7 +5,8 @@ import { createReadStream, existsSync } from 'node:fs';
 import { resolve, join, relative, isAbsolute, sep, extname } from 'node:path';
 import { randomUUID, randomBytes, createHmac, scryptSync, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { notifyMessage, notifyVisit, sendTelegram, startDigest, notifySettings, isBot, device, referrerHost, visitorId } from './notify.js';
+import { notifyChat, notifyMessage, notifyVisit, sendTelegram, startDigest, notifySettings, isBot, device, referrerHost, visitorId } from './notify.js';
+import { assistantAvailable, assistantModel, assistantSettings, cleanChatRequest, dailyLimit, demoMode, streamReply } from './assistant.js';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const dataDir = resolve(process.env.DATA_DIR || join(root, 'data'));
@@ -28,13 +29,17 @@ CREATE TABLE IF NOT EXISTS media (id TEXT PRIMARY KEY, kind TEXT NOT NULL, mime 
 CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, expires_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, message TEXT NOT NULL, created_at TEXT NOT NULL, read_at TEXT);
 CREATE TABLE IF NOT EXISTS visits (id INTEGER PRIMARY KEY AUTOINCREMENT, day TEXT NOT NULL, visitor TEXT NOT NULL, path TEXT NOT NULL, referrer TEXT NOT NULL, device TEXT NOT NULL, country TEXT NOT NULL, created_at TEXT NOT NULL);
-CREATE INDEX IF NOT EXISTS visits_day ON visits(day, visitor);`);
+CREATE INDEX IF NOT EXISTS visits_day ON visits(day, visitor);
+CREATE TABLE IF NOT EXISTS chats (id INTEGER PRIMARY KEY AUTOINCREMENT, conversation TEXT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS chats_conversation ON chats(conversation, id);`);
+db.prepare('DELETE FROM chats WHERE created_at < ?').run(new Date(Date.now()-90*86400000).toISOString());
 db.prepare('DELETE FROM visits WHERE day < ?').run(new Date(Date.now()-400*86400000).toISOString().slice(0,10));
 const seed = JSON.parse(await readFile(join(root,'server','seed.json'),'utf8'));
 for (const kind of ['published','draft']) db.prepare('INSERT OR IGNORE INTO documents(kind,content,revision,updated_at) VALUES(?,?,1,?)').run(kind,JSON.stringify(seed),new Date().toISOString());
 const published = () => JSON.parse(db.prepare("SELECT content FROM documents WHERE kind='published'").get().content);
 const drafts = () => db.prepare("SELECT content,revision,updated_at FROM documents WHERE kind='draft'").get();
-const loginAttempts = new Map(), contactAttempts = new Map(), viewAttempts = new Map();
+const loginAttempts = new Map(), contactAttempts = new Map(), viewAttempts = new Map(), chatAttempts = new Map(), chatDaily = new Map();
+const chatBudget = { day: '', used: 0 };
 const trustProxy = process.env.TRUST_PROXY === 'true';
 const ownHost = (process.env.SITE_HOST || 'medamine.work').replace(/^www\./,'');
 const now = () => new Date().toISOString();
@@ -48,6 +53,8 @@ const sanitize = input => {
   const out={};
   for(const key of ['brand','role','headline','availability','location','contactHeadline','portraitAlt'])out[key]=isStr(input[key],180);
   out.portrait=mediaUrl(input.portrait);
+  const a=input.assistant&&typeof input.assistant==='object'?input.assistant:{};
+  out.assistant={enabled:a.enabled!==false,avatar:a.avatar!==false,name:isStr(a.name,60),greeting:isStr(a.greeting,400),suggestions:clampList(a.suggestions,8).map(x=>isStr(x,120)).filter(Boolean),facts:isStr(a.facts,3000)};
   for(const key of ['intro','about','contactText'])out[key]=isStr(input[key],1400);
   out.email=isStr(input.email,254);if(out.email&&!validEmail(out.email))throw Error('Enter a valid contact email');
   out.linkedin=cleanUrl(input.linkedin);out.github=cleanUrl(input.github);
@@ -89,9 +96,38 @@ async function page(res,admin=false){
  const html=template.replace(/<title>[^<]*<\/title>/,`<title>${escapeHtml(title)}</title>`).replace(/<meta name="description" content="[^"]*">/,`<meta name="description" content="${escapeHtml(description)}">`).replace('<div id="root"></div>',`<div id="root">${snapshot}</div>`);
  headers(res,200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store',...(admin?{'X-Robots-Tag':'noindex, nofollow'}:{})});res.end(html);
 }
+// Visitor chat with the assistant. Streams newline-delimited JSON: {t:"d",v:text}…, then {t:"done"} or {t:"error",v}.
+async function chat(req,res){
+ if(!assistantAvailable||!assistantSettings(published()).enabled)return fail(res,503,'The assistant is not available right now.');
+ const ip=clientKey(req);
+ if(!rate(chatAttempts,ip,20,600000)||!rate(chatDaily,ip,80,86400000))return fail(res,429,'That is a lot of questions! Please try again a bit later, or leave a message instead.');
+ const {conversation,messages}=cleanChatRequest(await parseJson(req,40000));
+ const day=now().slice(0,10);if(chatBudget.day!==day){chatBudget.day=day;chatBudget.used=0}
+ if(chatBudget.used>=dailyLimit)return fail(res,429,'The assistant is resting for today. Please leave a message instead.');
+ chatBudget.used++;
+ const question=messages.at(-1).content,insert=db.prepare('INSERT INTO chats(conversation,role,content,created_at) VALUES(?,?,?,?)');
+ const firstTurn=!db.prepare('SELECT 1 FROM chats WHERE conversation=? LIMIT 1').get(conversation);
+ insert.run(conversation,'user',question,now());
+ if(firstTurn&&!session(req))notifyChat(question);
+ headers(res,200,{'Content-Type':'application/x-ndjson; charset=utf-8','Cache-Control':'no-store','X-Accel-Buffering':'no'});
+ const ac=new AbortController();res.on('close',()=>{if(!res.writableEnded)ac.abort()});
+ const send=o=>res.write(JSON.stringify(o)+'\n');
+ try{
+  let {text,stopReason}=await streamReply({content:published(),messages,onText:v=>send({t:'d',v}),signal:ac.signal});
+  if(stopReason==='refusal'&&!text.trim()){text='Sorry, I can’t help with that one. Ask me about the projects, experience or availability, or leave a message!';send({t:'d',v:text})}
+  if(text)insert.run(conversation,'assistant',text,now());
+  send({t:'done'});
+ }catch(err){
+  if(ac.signal.aborted)return;
+  console.error('Assistant error:',err?.status||'',err?.message||err);
+  send({t:'error',v:'The assistant is unavailable right now. Please try again, or leave a message.'});
+ }
+ res.end();
+}
 async function handler(req,res){try{
  const url=new URL(req.url,'http://localhost');const path=url.pathname;const method=req.method;
- if(path==='/api/site'&&method==='GET')return json(res,{content:published()});
+ if(path==='/api/site'&&method==='GET'){const content=published(),{facts,...settings}=assistantSettings(content);return json(res,{content,assistant:{...settings,enabled:assistantAvailable&&settings.enabled,demo:demoMode}})}
+ if(path==='/api/chat'&&method==='POST')return await chat(req,res);
  if(path==='/api/contact'&&method==='POST'){
   if(!rate(contactAttempts,clientKey(req),5,3600000))return fail(res,429,'Please try again later.');
   const data=await parseJson(req,8000);if(isStr(data.website))return json(res,{ok:true});
@@ -143,7 +179,13 @@ async function handler(req,res){try{
   const referrers=db.prepare(`SELECT referrer host, COUNT(DISTINCT day||visitor) n FROM visits WHERE day>=? AND referrer<>'' GROUP BY referrer ORDER BY n DESC LIMIT 6`).all(since(29));
   const recent=db.prepare('SELECT created_at, path, referrer, device, country FROM visits ORDER BY id DESC LIMIT 12').all();
   const unread=db.prepare('SELECT COUNT(*) n FROM messages WHERE read_at IS NULL').get().n;
-  return json(res,{today:count(today),week:count(since(6)),month:count(since(29)),daily,referrers,recent,unread,notifications:notifySettings});
+  return json(res,{today:count(today),week:count(since(6)),month:count(since(29)),daily,referrers,recent,unread,notifications:notifySettings,assistant:{available:assistantAvailable,demo:demoMode,model:assistantModel,dailyLimit,usedToday:chatBudget.day===today?chatBudget.used:0,conversationsToday:db.prepare('SELECT COUNT(DISTINCT conversation) n FROM chats WHERE substr(created_at,1,10)=?').get(today).n}});
+ }
+ if(path==='/api/admin/chats'&&method==='GET'){
+  if(!requireAdmin(req,res))return;
+  const convs=db.prepare('SELECT conversation, MIN(created_at) started, MAX(created_at) last, COUNT(*) n FROM chats GROUP BY conversation ORDER BY last DESC LIMIT 40').all();
+  const msgs=db.prepare('SELECT role, content, created_at FROM chats WHERE conversation=? ORDER BY id');
+  return json(res,{conversations:convs.map(c=>({...c,messages:msgs.all(c.conversation)}))});
  }
  if(path==='/api/admin/notify-test'&&method==='POST'){
   if(!requireAdmin(req,res,true))return;if(!notifySettings.enabled)return fail(res,400,'Telegram is not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in .env and restart.');

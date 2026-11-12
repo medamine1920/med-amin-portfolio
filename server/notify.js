@@ -37,6 +37,13 @@ export function notifyMessage({ name, email, message }) {
   return sendTelegram(`📬 New message on ${siteName}\n\nFrom: ${clip(name, 120)} <${clip(email, 254)}>\n\n${clip(message, 1500)}\n\nReply from your inbox at /admin → Inbox.`);
 }
 
+// First question of each new assistant conversation (TELEGRAM_CHATS=off to disable).
+const chatAlerts = process.env.TELEGRAM_CHATS !== 'off';
+export function notifyChat(question) {
+  if (!chatAlerts || !underHourlyCap()) return Promise.resolve({ ok: false, reason: 'skipped' });
+  return sendTelegram(`💬 A visitor is chatting with your AI assistant on ${siteName}\n\n“${clip(question, 400)}”\n\nRead the conversation in /admin → Assistant.`);
+}
+
 // ---- Visits -------------------------------------------------------------
 
 // Link-preview fetchers are matched by their bot names only (TelegramBot, Discordbot, Slackbot, WhatsApp/x.y),

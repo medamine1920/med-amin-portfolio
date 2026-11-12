@@ -1,0 +1,207 @@
+/* Cartoon avatar. Joints rotate around their real positions in the 160x270 SVG (transform-box: view-box). */
+.site .av { position: fixed; left: 0; bottom: 4px; z-index: 88; width: 120px; pointer-events: none; will-change: transform; }
+.site .av.is-hidden { display: none; }
+.site .av-hit { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: pointer; pointer-events: auto; border-radius: 48px; }
+.site .av-hit:focus-visible { outline: 2px solid var(--mint); outline-offset: 4px; }
+.site .av-svg { display: block; width: 100%; height: auto; overflow: visible; filter: drop-shadow(0 12px 16px rgb(0 0 0 / 0.32)); }
+.site .av-svg.face-left { transform: scaleX(-1); }
+.site .av-svg.face-left text { transform: scaleX(-1); transform-box: fill-box; transform-origin: center; }
+
+/* Colours, from the reference photo: charcoal blazer, black turtleneck, warm skin, dark hair and beard. */
+.site .av-skin { fill: #dfa37d; }
+.site .av-hand { fill: #dfa37d; stroke: #c48660; stroke-width: 1; }
+.site .av-thumb { fill: #dfa37d; stroke: #c48660; stroke-width: 1; opacity: 0; }
+.site .av-hair { fill: #1e1510; }
+.site .av-beard { fill: #24170f; }
+.site .av-brows path { fill: none; stroke: #1e1510; stroke-width: 3.6; stroke-linecap: round; }
+.site .av-eye-white { fill: #fff; }
+.site .av-nose { fill: none; stroke: #b8754e; stroke-width: 1.7; stroke-linecap: round; }
+.site .av-mouth-smile { fill: none; stroke: #6e2f22; stroke-width: 2.3; stroke-linecap: round; }
+.site .av-blush { fill: #ec8a6c; opacity: 0; transition: opacity 0.3s; }
+.site .av-collar { fill: #151515; }
+.site .av-collar-fold { fill: none; stroke: #2a2a2a; stroke-width: 1.2; }
+.site .av-turtle { fill: #151515; }
+.site .av-blazer { fill: #3b3c3f; stroke: #2a2b2e; stroke-width: 1; }
+.site .av-lapel { fill: #2c2d30; }
+.site .av-sleeve { fill: #3b3c3f; stroke: #2a2b2e; stroke-width: 1; }
+.site .av-trousers { fill: #2a2b2e; }
+.site .av-shoe { fill: #111; stroke: #3a3a3a; stroke-width: 1; }
+.site .av-pin rect { fill: #f3b766; }
+.site .av-pin text { font: 700 3.3px var(--mono); fill: #23170a; text-anchor: middle; }
+.site .av-shadow { fill: rgb(0 0 0 / 0.3); transform-box: fill-box; transform-origin: center; transition: transform 0.2s, opacity 0.2s; }
+.site .av-sparkles path { fill: #f3b766; opacity: 0; transform-box: fill-box; transform-origin: center; }
+
+/* Joints */
+.site :where(.av-svg) :where(g, rect, path, circle, ellipse) { transform-box: view-box; }
+.site .av-body { transform-origin: 80px 262px; animation: av-breathe 3s ease-in-out infinite; }
+.site .av-head { transform-origin: 80px 96px; transition: transform 0.45s var(--ease); }
+.site .av-arm-l { transform-origin: 54px 112px; }
+.site .av-fore-l { transform-origin: 54px 140px; }
+.site .av-arm-r { transform-origin: 106px 112px; }
+.site .av-fore-r { transform-origin: 106px 140px; }
+.site .av-thigh-l { transform-origin: 69px 174px; }
+.site .av-shin-l { transform-origin: 69px 210px; }
+.site .av-thigh-r { transform-origin: 91px 174px; }
+.site .av-shin-r { transform-origin: 91px 210px; }
+.site .av-arm, .site .av-fore, .site .av-thigh, .site .av-shin { transition: transform 0.4s cubic-bezier(0.34, 1.35, 0.64, 1); }
+
+/* Face */
+.site .av-eye { transform-box: fill-box; transform-origin: center; animation: av-blink 4.6s infinite; }
+.site .av-eye + .av-eye { animation-delay: 0.04s; }
+.site .av-iris { transform: translate(calc(var(--lx, 0) * 1px), calc(var(--ly, 0) * 1px)); transition: transform 0.15s; }
+.site .av-brows { transition: transform 0.3s var(--ease); }
+.site .av-mouth-open, .site .av-mouth-talk { opacity: 0; }
+.site :is(.mood-happy, .mood-surprised) .av-mouth-smile { opacity: 0; }
+.site :is(.mood-happy, .mood-surprised) .av-mouth-open { opacity: 1; }
+.site :is(.mood-happy, .mood-surprised) .av-brows { transform: translateY(-3px); }
+.site .mood-happy .av-blush { opacity: 0.45; }
+.site .mood-happy .av-sparkles path { animation: av-sparkle 0.9s ease-out infinite; }
+.site .mood-happy .av-sparkles path:nth-child(2) { animation-delay: 0.25s; }
+.site .mood-happy .av-sparkles path:nth-child(3) { animation-delay: 0.5s; }
+.site .mood-talk .av-mouth-smile { opacity: 0; }
+.site .mood-talk .av-mouth-talk { opacity: 1; transform-box: fill-box; transform-origin: center; animation: av-talkmouth 0.24s ease-in-out infinite alternate; }
+.site .mood-think .av-mouth-smile { transform: translate(3px, 0.5px) scale(0.55, 0.4); transform-box: fill-box; transform-origin: center; }
+.site .mood-think .av-brows path:first-child { transform: translateY(-3px) rotate(-6deg); transform-box: fill-box; transform-origin: center; }
+
+/* Poses */
+.site .pose-idle .av-arm-l { animation: av-sway 3.2s ease-in-out infinite; }
+.site .pose-idle .av-arm-r { animation: av-sway 3.2s ease-in-out infinite reverse; }
+.site .pose-wave .av-arm-r { transform: rotate(-150deg); }
+.site .pose-wave .av-fore-r { animation: av-wave 0.45s ease-in-out infinite alternate; }
+.site .pose-wave .av-head { transform: rotate(-5deg); }
+.site .pose-point .av-arm-r { transform: rotate(-88deg); }
+.site .pose-point .av-fore-r { transform: rotate(-6deg); }
+.site .pose-point .av-head { transform: rotate(5deg); }
+.site .pose-think .av-arm-r { transform: rotate(32deg); }
+.site .pose-think .av-fore-r { transform: rotate(-152deg); }
+.site .pose-think .av-head { animation: av-ponder 2.4s ease-in-out infinite; }
+.site .pose-thumbs .av-arm-r { transform: rotate(-30deg); }
+.site .pose-thumbs .av-fore-r { transform: rotate(-120deg); }
+.site .pose-thumbs .av-fore-r .av-thumb { opacity: 1; }
+.site .pose-shrug .av-arm-l { transform: rotate(40deg); }
+.site .pose-shrug .av-fore-l { transform: rotate(-85deg); }
+.site .pose-shrug .av-arm-r { transform: rotate(-40deg); }
+.site .pose-shrug .av-fore-r { transform: rotate(85deg); }
+.site .pose-shrug .av-head { transform: rotate(8deg); }
+.site .pose-present .av-arm-l { transform: rotate(60deg); }
+.site .pose-present .av-fore-l { transform: rotate(-22deg); }
+.site .pose-present .av-arm-r { transform: rotate(-60deg); }
+.site .pose-present .av-fore-r { transform: rotate(22deg); }
+.site .pose-listen .av-head { animation: av-nod 2.2s ease-in-out infinite; }
+.site .pose-listen .av-arm-r { transform: rotate(20deg); }
+.site .pose-listen .av-fore-r { transform: rotate(-128deg); }
+.site .pose-look .av-head { animation: av-lookaround 2.6s ease-in-out 1; }
+.site .pose-happy .av-arm-r { transform: rotate(-165deg); }
+.site .pose-happy .av-fore-r { transform: rotate(-38deg); animation: av-pump 0.32s ease-in-out infinite alternate; }
+.site .pose-happy .av-arm-l { transform: rotate(32deg); }
+.site .pose-happy .av-fore-l { transform: rotate(-70deg); }
+.site .pose-happy .av-head { transform: rotate(-4deg); }
+.site .pose-dunk .av-arm-r { transform: rotate(-176deg); }
+.site .pose-dunk .av-fore-r { transform: rotate(-4deg); }
+.site .pose-dunk .av-arm-l { transform: rotate(55deg); }
+.site .pose-slam .av-arm-r { transform: rotate(-35deg); transition-duration: 0.09s; }
+.site .pose-slam .av-fore-r { transform: rotate(-25deg); transition-duration: 0.09s; }
+.site .pose-slam .av-arm-l { transform: rotate(45deg); }
+
+/* Walking: heel strike at 0%, toe-off at 50%, knee bends through the swing; arms swing opposite the legs. */
+.site :is(.is-walk, .is-run) .av-thigh-l { animation: av-thigh var(--cycle) linear infinite; }
+.site :is(.is-walk, .is-run) .av-thigh-r { animation: av-thigh var(--cycle) linear infinite; animation-delay: calc(var(--cycle) / -2); }
+.site :is(.is-walk, .is-run) .av-shin-l { animation: av-shin var(--cycle) linear infinite; }
+.site :is(.is-walk, .is-run) .av-shin-r { animation: av-shin var(--cycle) linear infinite; animation-delay: calc(var(--cycle) / -2); }
+.site :is(.is-walk, .is-run) .av-arm-l { animation: av-armswing var(--cycle) ease-in-out infinite; transform: none; }
+.site :is(.is-walk, .is-run) .av-arm-r { animation: av-armswing var(--cycle) ease-in-out infinite; animation-delay: calc(var(--cycle) / -2); transform: none; }
+.site :is(.is-walk, .is-run) .av-fore { transform: rotate(-20deg); animation: none; }
+.site :is(.is-walk, .is-run) .av-body { animation: av-stepbob calc(var(--cycle) / 2) ease-in-out infinite; }
+.site :is(.is-walk, .is-run) .av-head { animation: none; transform: rotate(0); }
+.site .is-walk { --cycle: 0.9s; }
+.site .is-run { --cycle: 0.48s; }
+.site .is-run .av-body { animation: av-runbob 0.24s ease-in-out infinite; }
+.site .is-run .av-fore { transform: rotate(-70deg); }
+.site .is-run .av-thigh { animation-name: av-thigh-run; }
+.site .is-run .av-shin { animation-name: av-shin-run; }
+
+/* Jumping: squat, tuck in the air, squash on landing. */
+.site .is-crouch .av-body { animation: none; transform: translateY(10px); transition: transform 0.14s; }
+.site .is-crouch .av-thigh-l { transform: rotate(22deg); }
+.site .is-crouch .av-shin-l { transform: rotate(-44deg); }
+.site .is-crouch .av-thigh-r { transform: rotate(-22deg); }
+.site .is-crouch .av-shin-r { transform: rotate(44deg); }
+.site .is-crouch:not(.pose-dunk) .av-arm-l { transform: rotate(28deg); }
+.site .is-crouch:not(.pose-dunk) .av-arm-r { transform: rotate(-28deg); }
+.site .is-air .av-body { animation: none; }
+.site .is-air .av-thigh-l { transform: rotate(32deg); }
+.site .is-air .av-shin-l { transform: rotate(-72deg); }
+.site .is-air .av-thigh-r { transform: rotate(-32deg); }
+.site .is-air .av-shin-r { transform: rotate(72deg); }
+.site .is-air:not(.pose-dunk):not(.pose-slam) .av-arm-l { transform: rotate(145deg); }
+.site .is-air:not(.pose-dunk):not(.pose-slam) .av-arm-r { transform: rotate(-145deg); }
+.site .is-air .av-shadow { transform: scale(0.45); opacity: 0.35; }
+.site .is-land .av-body { animation: av-squash 0.26s ease-out; }
+
+/* Speech bubble */
+.site .av-bubble { position: absolute; bottom: calc(100% - 8px); right: 0; width: min(300px, calc(100vw - 24px)); padding: 14px 14px 12px; border-radius: 18px 18px 6px 18px; border: 1px solid var(--line-strong); background: var(--ink-2); color: var(--text); box-shadow: 0 24px 50px -24px rgb(0 0 0 / 0.75); pointer-events: auto; animation: av-pop 0.4s cubic-bezier(0.34, 1.5, 0.64, 1) both; transform-origin: bottom right; }
+.site .av.on-left .av-bubble { right: auto; left: 0; border-radius: 18px 18px 18px 6px; transform-origin: bottom left; }
+.site .av-bubble p { font-size: 0.9rem; line-height: 1.5; padding-right: 16px; }
+.site .av-step { display: inline-block; margin-bottom: 6px; font: 600 0.68rem var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--amber); }
+.site .av-bubble-x { position: absolute; top: 4px; right: 6px; width: 26px; height: 26px; border: 0; border-radius: 50%; background: none; color: var(--muted); font-size: 1.1rem; cursor: pointer; }
+.site .av-bubble-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.site .av-bubble-actions :is(button, a) { font: 500 0.78rem var(--body); padding: 6px 11px; border-radius: 999px; cursor: pointer; text-decoration: none; transition: background-color 0.2s, border-color 0.2s, transform 0.2s; }
+.site .av-primary { border: 0; background: var(--mint); color: var(--on-mint); font-weight: 650 !important; }
+.site .av-primary:hover { transform: translateY(-1px); }
+.site .av-ask { border: 1px solid rgb(159 232 199 / 0.4); background: rgb(159 232 199 / 0.08); color: var(--text); text-align: left; }
+.site .av-ask:hover { border-color: var(--mint); }
+.site .av-hide { border: 0; background: none; color: var(--dim); }
+.site .av-hide:hover { color: var(--text); }
+
+/* Dunk effects */
+.site .av-dunked { animation: av-dunked 0.45s cubic-bezier(0.34, 1.6, 0.64, 1); }
+.site .av-burst { position: fixed; z-index: 95; transform: translate(-50%, -50%); pointer-events: none; font: 800 1.05rem var(--display); color: var(--amber); text-shadow: 0 2px 10px rgb(0 0 0 / 0.45); white-space: nowrap; animation: av-burst 0.9s ease-out forwards; }
+
+@keyframes av-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.5px); } }
+@keyframes av-blink { 0%, 94%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
+@keyframes av-talkmouth { from { transform: scaleY(0.35); } to { transform: scaleY(1.1); } }
+@keyframes av-sparkle { 0% { opacity: 0; transform: scale(0.3) rotate(0); } 40% { opacity: 1; transform: scale(1.1) rotate(30deg); } 100% { opacity: 0; transform: scale(0.6) rotate(60deg); } }
+@keyframes av-sway { 0%, 100% { transform: rotate(3deg); } 50% { transform: rotate(-3deg); } }
+@keyframes av-wave { from { transform: rotate(-30deg); } to { transform: rotate(22deg); } }
+@keyframes av-ponder { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(-2deg); } }
+@keyframes av-nod { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(-2deg) translateY(1.5px); } }
+@keyframes av-lookaround { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-9deg); } 70% { transform: rotate(9deg); } }
+@keyframes av-pump { from { transform: rotate(-30deg); } to { transform: rotate(-60deg); } }
+@keyframes av-thigh { 0% { transform: rotate(-24deg); } 50% { transform: rotate(20deg); } 100% { transform: rotate(-24deg); } }
+@keyframes av-shin { 0% { transform: rotate(0); } 30% { transform: rotate(5deg); } 50% { transform: rotate(16deg); } 68% { transform: rotate(50deg); } 86% { transform: rotate(18deg); } 100% { transform: rotate(0); } }
+@keyframes av-thigh-run { 0% { transform: rotate(-38deg); } 50% { transform: rotate(30deg); } 100% { transform: rotate(-38deg); } }
+@keyframes av-shin-run { 0% { transform: rotate(8deg); } 50% { transform: rotate(30deg); } 70% { transform: rotate(85deg); } 100% { transform: rotate(8deg); } }
+@keyframes av-armswing { 0% { transform: rotate(18deg); } 50% { transform: rotate(-18deg); } 100% { transform: rotate(18deg); } }
+@keyframes av-stepbob { 0%, 100% { transform: translateY(1.5px); } 50% { transform: translateY(-3px); } }
+@keyframes av-runbob { 0%, 100% { transform: translateY(1px) rotate(6deg); } 50% { transform: translateY(-5px) rotate(6deg); } }
+@keyframes av-squash { 0% { transform: translateY(6px) scale(1.08, 0.88); } 60% { transform: translateY(-2px) scale(0.97, 1.04); } 100% { transform: none; } }
+@keyframes av-pop { from { opacity: 0; transform: scale(0.85) translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes av-dunked { 0% { transform: scale(1); } 30% { transform: scale(0.86) translateY(3px); box-shadow: 0 0 0 6px rgb(243 183 102 / 0.45); } 70% { transform: scale(1.06); } 100% { transform: none; box-shadow: 0 0 0 0 rgb(243 183 102 / 0); } }
+@keyframes av-burst { 0% { opacity: 0; transform: translate(-50%, -30%) scale(0.6); } 25% { opacity: 1; transform: translate(-50%, -90%) scale(1.15); } 100% { opacity: 0; transform: translate(-50%, -190%) scale(1); } }
+
+@media (max-width: 640px) {
+  .site .av { width: 84px; bottom: 2px; }
+  .site .av-bubble { width: min(270px, calc(100vw - 16px)); }
+  .site .av-bubble p { font-size: 0.85rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .site .av *, .site .av-svg, .site .av-bubble, .site .av-burst, .site .av-dunked { animation: none !important; transition: none !important; }
+}
+
+/* Sad (shown still, e.g. when the visitor's system asks for reduced motion) */
+.site .av-mouth-sad { fill: none; stroke: #6e2f22; stroke-width: 2.3; stroke-linecap: round; opacity: 0; }
+.site .av-tear { fill: #8fd3ff; stroke: #5fb6ea; stroke-width: 0.6; opacity: 0; }
+.site .mood-sad .av-mouth-smile { opacity: 0; }
+.site .mood-sad .av-mouth-sad, .site .mood-sad .av-tear { opacity: 1; }
+.site .mood-sad .av-brows path:first-child { transform: rotate(-12deg) translateY(1px); transform-box: fill-box; transform-origin: center; }
+.site .mood-sad .av-brows path:last-child { transform: rotate(12deg) translateY(1px); transform-box: fill-box; transform-origin: center; }
+.site .mood-sad .av-iris { transform: translate(0, 1.4px); }
+.site .mood-sad .av-tear { animation: av-tear 2.2s ease-in infinite; }
+.site .pose-sad .av-head { transform: rotate(7deg) translateY(2px); }
+.site .pose-sad .av-arm-l { transform: rotate(-4deg); }
+.site .pose-sad .av-arm-r { transform: rotate(4deg); }
+.site .pose-sad .av-body { animation: none; transform: translateY(2px); }
+@keyframes av-tear { 0%, 30% { transform: translateY(0); opacity: 1; } 90% { transform: translateY(16px); opacity: 0.2; } 100% { transform: translateY(16px); opacity: 0; } }
+/* Short "Hire me!" bubbles */
+.site .av-bubble.is-short { width: auto; max-width: min(240px, calc(100vw - 24px)); }
+.site .av-bubble.is-short p { font: 700 1rem var(--display); }

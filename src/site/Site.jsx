@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import '@fontsource-variable/bricolage-grotesque/standard.css';
 import '@fontsource-variable/geist';
@@ -8,9 +8,17 @@ import { api, external } from '../api.js';
 import { useReveal, useInView, trackPointer, parseStat, formatStat, reducedMotion, useScrollProgress } from './motion.js';
 
 const NAV = [['work', 'Work'], ['approach', 'Approach'], ['experience', 'Experience'], ['contact', 'Contact']];
-const initials = name => (name || 'Portfolio').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+export const initials = name => (name || 'Portfolio').split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
 
-export default function Site({ data, preview = false }) {
+// The assistant is its own chunk, loaded shortly after the page so it never delays the first paint.
+const Assistant = lazy(() => import('./Assistant.jsx'));
+function DeferredAssistant(props) {
+  const [ready, setReady] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setReady(true), 1200); return () => clearTimeout(t); }, []);
+  return ready ? <Suspense fallback={null}><Assistant {...props} /></Suspense> : null;
+}
+
+export default function Site({ data, assistant, preview = false }) {
   const root = useRef(null);
   useReveal(root, [data]);
   const [theme, toggleTheme] = useTheme(preview);
@@ -32,6 +40,7 @@ export default function Site({ data, preview = false }) {
   return (
     <div className="site" ref={root} data-theme={theme} onPointerMove={magnet} onPointerOut={unmagnet}>
       {!preview && <CursorGlow />}
+      {!preview && assistant?.enabled && <DeferredAssistant data={data} config={assistant} />}
       {!preview && <a className="skip-link" href="#main">Skip to content</a>}
       {preview && <div className="preview-ribbon">Draft preview · Only you can see this version</div>}
       <Header data={data} preview={preview} theme={theme} toggleTheme={toggleTheme} />

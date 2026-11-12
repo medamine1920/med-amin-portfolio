@@ -44,13 +44,54 @@ test('telegram notifications for messages and unique visitors, admin stats',asyn
   assert.equal(sent.length,4);
  }finally{await stop(proc);fake.close();await rm(dir,{recursive:true,force:true})}
 });
+test('assistant streams grounded replies, logs conversations, alerts once, validates input',async()=>{
+ // Fake Claude API: streams "Hello there" as server-sent events and records each request.
+ const calls=[];const claude=createServer((req,res)=>{let b='';req.on('data',c=>b+=c);req.on('end',()=>{calls.push({url:req.url,headers:req.headers,body:JSON.parse(b)});res.writeHead(200,{'Content-Type':'text/event-stream'});
+  const ev=(type,data)=>res.write(`event: ${type}\ndata: ${JSON.stringify({type,...data})}\n\n`);
+  ev('message_start',{message:{id:'msg_1',type:'message',role:'assistant',model:'claude-opus-5-5',content:[],stop_reason:null,stop_sequence:null,usage:{input_tokens:10,output_tokens:0}}});
+  ev('content_block_start',{index:0,content_block:{type:'text',text:''}});
+  ev('content_block_delta',{index:0,delta:{type:'text_delta',text:'Hello '}});
+  ev('content_block_delta',{index:0,delta:{type:'text_delta',text:'there'}});
+  ev('content_block_stop',{index:0});ev('message_delta',{delta:{stop_reason:'end_turn',stop_sequence:null},usage:{output_tokens:2}});ev('message_stop',{});res.end()})});
+ const sent=[];const tg=createServer((req,res)=>{let b='';req.on('data',c=>b+=c);req.on('end',()=>{sent.push(JSON.parse(b));res.writeHead(200,{'Content-Type':'application/json'});res.end('{"ok":true}')})});
+ await new Promise(r=>claude.listen(0,'127.0.0.1',r));await new Promise(r=>tg.listen(0,'127.0.0.1',r));
+ const dir=await mkdtemp(join(tmpdir(),'portfolio-test-'));const port=34000+Math.floor(Math.random()*1000);
+ const proc=spawn(process.execPath,['server/index.js'],{cwd:join(import.meta.dirname,'..'),env:{...process.env,PORT:String(port),DATA_DIR:dir,SESSION_SECRET:'test-secret-0123456789abcdef0123456789abcdef',ADMIN_PASSWORD:password,ANTHROPIC_API_KEY:'test-key',ANTHROPIC_BASE_URL:`http://127.0.0.1:${claude.address().port}`,ASSISTANT_MODEL:'',TELEGRAM_BOT_TOKEN:'1:t',TELEGRAM_CHAT_ID:'9',TELEGRAM_API_BASE:`http://127.0.0.1:${tg.address().port}`},stdio:'pipe'});
+ const base=`http://127.0.0.1:${port}`;const ask=body=>fetch(base+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json','User-Agent':'Mozilla/5.0 Chrome/130.0'},body:JSON.stringify(body)});
+ try{
+  for(let i=0;i<40;i++){try{await fetch(base+'/api/site');break}catch{await wait(50)}}
+  const site=await (await fetch(base+'/api/site')).json();
+  assert.equal(site.assistant.enabled,true);assert.equal(site.assistant.facts,undefined,'owner notes are never sent to browsers');assert.ok(site.assistant.suggestions.length>0);
+  const r1=await ask({conversation:'conv-12345678',messages:[{role:'user',content:'What does he build?'}]});
+  assert.equal(r1.status,200);assert.match(r1.headers.get('content-type'),/ndjson/);
+  const lines=(await r1.text()).trim().split('\n').map(l=>JSON.parse(l));
+  assert.equal(lines.filter(l=>l.t==='d').map(l=>l.v).join(''),'Hello there');assert.equal(lines.at(-1).t,'done');
+  const req1=calls[0].body;
+  assert.equal(req1.model,'claude-opus-5-5');assert.equal(req1.output_config.effort,'low');assert.equal(req1.fallbacks,'default');
+  assert.match(calls[0].headers['anthropic-beta'],/server-side-fallback-2026-07-01/);
+  assert.match(req1.system[0].text,/Med Amin Gnichi/);assert.deepEqual(req1.system[0].cache_control,{type:'ephemeral'});
+  const r2=await ask({conversation:'conv-12345678',messages:[{role:'user',content:'What does he build?'},{role:'assistant',content:'Hello there'},{role:'user',content:'And his experience?'}]});
+  await r2.text();assert.equal(calls[1].body.messages.length,3);
+  assert.equal((await ask({conversation:'conv-12345678',messages:[{role:'assistant',content:'hi'}]})).status,400);
+  assert.equal((await ask({conversation:'x',messages:[{role:'user',content:'hi'}]})).status,400);
+  await wait(200);
+  assert.equal(sent.length,1,'one Telegram alert per new conversation');assert.match(sent[0].text,/What does he build\?/);
+  const login=await fetch(base+'/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password})});const cookie=login.headers.get('set-cookie').split(';')[0];
+  const chats=await (await fetch(base+'/api/admin/chats',{headers:{Cookie:cookie}})).json();
+  assert.equal(chats.conversations.length,1);assert.deepEqual(chats.conversations[0].messages.map(m=>m.role),['user','assistant','user','assistant']);
+  const stats=await (await fetch(base+'/api/admin/stats',{headers:{Cookie:cookie}})).json();assert.equal(stats.assistant.available,true);assert.equal(stats.assistant.usedToday,2);
+ }finally{await stop(proc);claude.close();tg.close();await rm(dir,{recursive:true,force:true})}
+});
+
 test('admin draft isolation, publish, contact inbox and upload authorization',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'portfolio-test-'));const port=32000+Math.floor(Math.random()*1000);
- const proc=spawn(process.execPath,['server/index.js'],{cwd:join(import.meta.dirname,'..'),env:{...process.env,PORT:String(port),DATA_DIR:dir,SESSION_SECRET:'test-secret-0123456789abcdef0123456789abcdef',ADMIN_PASSWORD:password},stdio:'pipe'});
+ const proc=spawn(process.execPath,['server/index.js'],{cwd:join(import.meta.dirname,'..'),env:{...process.env,PORT:String(port),DATA_DIR:dir,SESSION_SECRET:'test-secret-0123456789abcdef0123456789abcdef',ADMIN_PASSWORD:password,ANTHROPIC_API_KEY:'',ASSISTANT_DEMO:''},stdio:'pipe'});
  const base=`http://127.0.0.1:${port}`;
  try{
   for(let i=0;i<40;i++){try{await fetch(base+'/api/site');break}catch{await new Promise(r=>setTimeout(r,50))}}
   const pub=await (await fetch(base+'/api/site')).json();assert.equal(pub.content.projects.length,3);
+  assert.equal(pub.assistant.enabled,false,'no API key: assistant hidden');
+  assert.equal((await fetch(base+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conversation:'conv-12345678',messages:[{role:'user',content:'hi'}]})})).status,503);
   assert.equal((await fetch(base+'/api/admin/draft')).status,401);
   assert.equal((await fetch(base+'/api/admin/upload',{method:'POST'})).status,401);
   const login=await fetch(base+'/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password})});assert.equal(login.status,200);

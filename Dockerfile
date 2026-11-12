@@ -1,7 +1,10 @@
-# dist/ is built before deploying, so the image needs no npm install.
+# dist/ is built before the image (in GitHub Actions); the image installs only runtime dependencies.
 FROM node:24-alpine
 ENV NODE_ENV=production PORT=3000 DATA_DIR=/app/data
 WORKDIR /app
+# Runtime dependencies only (the Anthropic SDK); the front-end packages are build-time devDependencies.
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
 COPY dist ./dist
 COPY server ./server
 RUN mkdir -p /app/data/media && chown -R node:node /app/data
