@@ -155,6 +155,7 @@ export default function Avatar({ data, first, name = 'Parker', theme = 'dark', h
   const [state, setState] = useState('seated');
   const [pose, setPose] = useState('sit');
   const [motion, setMotion] = useState('');            // walk | rise | crouch | air | land | ''
+  const [dunking, setDunking] = useState(false);       // keeps his bubble on screen while he dunks its button
   const [mood, setMood] = useState('smile');
   const [faceLeft, setFaceLeft] = useState(true);
   const [look, setLook] = useState([0, 0]);
@@ -192,7 +193,7 @@ export default function Avatar({ data, first, name = 'Parker', theme = 'dark', h
   function start(next) {
     const c = ctl.current;
     c.timers.forEach(clearTimeout); c.timers.clear();
-    stopMotion(); setMotion(''); stopScroll();
+    stopMotion(); setMotion(''); stopScroll(); setDunking(false);
     c.token += 1; c.state = next; setState(next);
     return c.token;
   }
@@ -284,6 +285,60 @@ export default function Avatar({ data, first, name = 'Parker', theme = 'dark', h
     wrap.current?.querySelector('.av-hit')?.animate([{ transform: 'translateY(0)' }, { transform: 'translateY(-22px)' }, { transform: 'translateY(0)' }], { duration: 360, easing: 'ease-out' });
   }
 
+  // A jump in place (squat, leap, land), only ever in answer to a visitor's click. Resolves false if interrupted.
+  async function jump(tk, height = 100) {
+    if (reduced()) return true;
+    const hit = wrap.current?.querySelector('.av-hit');
+    setMotion('crouch'); if (!(await wait(tk, 140))) return false;
+    setMotion('air');
+    hit?.animate([
+      { transform: 'translateY(0)', easing: 'cubic-bezier(.2,.7,.4,1)' },
+      { transform: `translateY(${-height}px)`, easing: 'cubic-bezier(.6,0,.8,.3)' },
+      { transform: 'translateY(0)' },
+    ], { duration: 580 });
+    if (!(await wait(tk, 580))) return false;
+    setMotion('land'); if (!(await wait(tk, 240))) return false;
+    setMotion(''); return true;
+  }
+  function burst(r, text) {
+    const s = document.createElement('span');
+    s.className = 'av-burst'; s.textContent = text; s.setAttribute('aria-hidden', 'true');
+    s.style.left = `${r.left + r.width / 2}px`; s.style.top = `${r.top}px`;
+    (document.querySelector('.site') || document.body).append(s);
+    setTimeout(() => s.remove(), 1000);
+  }
+  // The visitor clicked "Contact/Message" in his bubble: he leaps up and dunks that very button, lands back on his
+  // spot, then the page glides to the contact section (what the visitor asked for).
+  async function dunkContact(e) {
+    e.preventDefault();
+    const btn = e.currentTarget, target = document.querySelector('#contact');
+    if (ctl.current.state === 'celebrating') setParty(null);       // the visitor moved on; wrap the party up
+    const tk = start('idle');
+    const go = () => { hush(); goIdle(); scrollToSection(target); };   // goIdle starts a new state, which stops scrolls
+    const hit = wrap.current?.querySelector('.av-hit');
+    if (reduced() || !hit) return go();
+    setDunking(true);
+    const b = btn.getBoundingClientRect(), h = hit.getBoundingClientRect();
+    const dx = Math.max(-160, Math.min(160, b.left + b.width / 2 - (h.left + h.width / 2)));
+    const dy = Math.max(-200, Math.min(-90, b.top - 30 - h.top));     // rise above the "rim", then slam down
+    setFaceLeft(dx < 0); setPose('dunk'); setMood('happy');
+    setMotion('crouch'); if (!(await wait(tk, 140))) return;
+    setMotion('air');
+    hit.animate([
+      { transform: 'translate(0,0)', easing: 'cubic-bezier(.2,.7,.4,1)' },
+      { transform: `translate(${dx}px,${dy}px)`, offset: 0.44 },
+      { transform: `translate(${dx}px,${dy}px)`, offset: 0.6, easing: 'cubic-bezier(.6,0,.9,.4)' },
+      { transform: 'translate(0,0)' },
+    ], { duration: 760 });
+    if (!(await wait(tk, 335))) return;
+    setPose('slam');
+    btn.classList.remove('av-dunked'); void btn.offsetWidth; btn.classList.add('av-dunked');
+    burst(b, pick(['SLAM! 🏀', 'DUNK! 🏀', 'Swish! 🏀']));
+    if (!(await wait(tk, 425))) return;
+    setMotion('land'); setPose('happy'); setDunking(false); go();
+    after(ctl.current.token, 240, () => { setMotion(''); setFaceLeft(true); });
+  }
+
   // ---- guided tour (visitor-driven; the page scrolls only inside these click handlers) ----
   // Parker's own cancellable scroll: native smooth scrolling can't be reliably stopped mid-way, and the visitor's
   // wheel, touch or keys take over at once.
@@ -313,10 +368,13 @@ export default function Avatar({ data, first, name = 'Parker', theme = 'dark', h
   function tourStep(i) {
     const list = steps.current || (steps.current = tourSteps(data, first));
     if (i >= list.length) {
-      const tk = start('idle'); setTourIndex(-1);
-      setPose('happy'); setMood('happy'); hop(tk);
-      speak(`That's the tour! 🎉 You now know ${first} better than his LinkedIn does. Ask me something, or message him directly?`, 'tour-end');
-      after(tk, 1800, () => goIdle());
+      const tk = start('idle'); setTourIndex(-1); hush();
+      setPose('happy'); setMood('happy');
+      jump(tk, 110).then(ok => {
+        if (!ok) return;
+        speak(`That's the tour! 🎉 You now know ${first} better than his LinkedIn does. Ask me something, or message him directly?`, 'tour-end');
+        after(tk, 1800, () => goIdle());
+      });
       return;
     }
     const tk = start('touring');
@@ -428,7 +486,7 @@ export default function Avatar({ data, first, name = 'Parker', theme = 'dark', h
     <>
       <Seat x={homeX} />
       <div ref={wrap} className={'av' + (hidden ? ' is-hidden' : '')} data-state={state}>
-        {bubble && !open && !motion && (
+        {bubble && !open && (!motion || dunking) && (
           <div className="av-bubble" role="status">
             <button type="button" className="av-bubble-x" onClick={() => (kind === 'tour' ? endTour() : hush())} aria-label="Dismiss">×</button>
             {kind === 'tour' && <span className="av-step">Tour · {tourIndex + 1} / {list.length}</span>}
@@ -438,9 +496,9 @@ export default function Avatar({ data, first, name = 'Parker', theme = 'dark', h
                 <button type="button" className="av-primary" onClick={() => tourStep(tourIndex + 1)}>{tourIndex + 1 < list.length ? 'Next →' : 'Finish 🏁'}</button>
                 <button type="button" className="av-hide" onClick={endTour}>End tour</button>
               </> : kind === 'party' ? <>
-                <a className="av-primary" href="#contact" onClick={hush}>Contact {first}</a>
+                <a className="av-primary" href="#contact" onClick={dunkContact}>Contact {first}</a>
               </> : kind === 'tour-end' || kind === 'yes' ? <>
-                <a className="av-primary" href="#contact" onClick={hush}>Message {first}</a>
+                <a className="av-primary" href="#contact" onClick={dunkContact}>Message {first}</a>
                 <button type="button" className="av-ask" onClick={onOpen}>Ask me anything</button>
               </> : kind === 'fit' ? <>
                 <button type="button" className="av-primary" onClick={yes}>Absolutely! 🎉</button>
