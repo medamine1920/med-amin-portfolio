@@ -418,9 +418,7 @@ html[data-theme='light'], html[data-theme='light'] body { background: #f4f7f2; }
 .site .cursor-glow.is-on { opacity: 1; }
 .site[data-theme='light'] .cursor-glow { background: radial-gradient(closest-side, rgb(15 127 86 / 0.06), transparent); }
 .site main, .site .footer { position: relative; z-index: 1; }
-/* Section headings wipe up into place; the eyebrow rule draws in. */
-.site h2[data-reveal] { opacity: 1; clip-path: inset(0 0 100% 0); transform: translateY(0.4em); transition: clip-path 1s var(--ease), transform 1s var(--ease); transition-delay: var(--d, 0s); }
-.site h2[data-reveal].is-in { clip-path: inset(-0.2em -0.1em -0.25em -0.1em); transform: none; }
+/* Section headings use the standard fade-and-rise reveal (a clip-path wipe hid them from IntersectionObserver); the eyebrow rule draws in. */
 .site .eyebrow[data-reveal]::before { width: 0; transition: width 0.8s 0.2s var(--ease); }
 .site .eyebrow[data-reveal].is-in::before { width: 22px; }
 /* Film grain over everything (static SVG noise; no animation cost). */

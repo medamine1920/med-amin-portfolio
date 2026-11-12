@@ -52,6 +52,8 @@ test('assistant streams grounded replies, logs conversations, alerts once, valid
   ev('content_block_start',{index:0,content_block:{type:'text',text:''}});
   ev('content_block_delta',{index:0,delta:{type:'text_delta',text:'Hello '}});
   ev('content_block_delta',{index:0,delta:{type:'text_delta',text:'there'}});
+  // A visitor mentioning hiring makes the fake model emit the intent marker, split across deltas.
+  if(/hire|offer/i.test(calls.at(-1).body.messages.at(-1).content)){ev('content_block_delta',{index:0,delta:{type:'text_delta',text:'!\n[[int'}});ev('content_block_delta',{index:0,delta:{type:'text_delta',text:'ent:hiring_interest]]'}});}
   ev('content_block_stop',{index:0});ev('message_delta',{delta:{stop_reason:'end_turn',stop_sequence:null},usage:{output_tokens:2}});ev('message_stop',{});res.end()})});
  const sent=[];const tg=createServer((req,res)=>{let b='';req.on('data',c=>b+=c);req.on('end',()=>{sent.push(JSON.parse(b));res.writeHead(200,{'Content-Type':'application/json'});res.end('{"ok":true}')})});
  await new Promise(r=>claude.listen(0,'127.0.0.1',r));await new Promise(r=>tg.listen(0,'127.0.0.1',r));
@@ -80,6 +82,18 @@ test('assistant streams grounded replies, logs conversations, alerts once, valid
   const chats=await (await fetch(base+'/api/admin/chats',{headers:{Cookie:cookie}})).json();
   assert.equal(chats.conversations.length,1);assert.deepEqual(chats.conversations[0].messages.map(m=>m.role),['user','assistant','user','assistant']);
   const stats=await (await fetch(base+'/api/admin/stats',{headers:{Cookie:cookie}})).json();assert.equal(stats.assistant.available,true);assert.equal(stats.assistant.usedToday,2);
+  // Hiring interest: marker hidden from the visitor and the log; celebrated once; questions never trigger it.
+  const chatLines=async body=>(await (await ask(body)).text()).trim().split('\n').map(l=>JSON.parse(l));
+  const hire=await chatLines({conversation:'conv-hire-001',messages:[{role:'user',content:"We'd like to offer him a role"}]});
+  assert.equal(hire.filter(l=>l.t==='d').map(l=>l.v).join('').trimEnd(),'Hello there!');
+  assert.deepEqual(hire.filter(l=>l.t==='intent'),[{t:'intent',v:'hiring_interest'}]);
+  const again=await chatLines({conversation:'conv-hire-001',messages:[{role:'user',content:"We'd like to offer him a role"},{role:'assistant',content:'Hello there!'},{role:'user',content:'I want to hire him'}]});
+  assert.equal(again.some(l=>l.t==='intent'),false,'once per conversation');
+  const why=await chatLines({conversation:'conv-hire-002',messages:[{role:'user',content:'Why should I hire him?'}]});
+  assert.equal(why.some(l=>l.t==='intent'),false,'server rejects questions even if the model marks them');
+  assert.equal(why.filter(l=>l.t==='d').map(l=>l.v).join('').includes('[['),false);
+  const logged=await (await fetch(base+'/api/admin/chats',{headers:{Cookie:cookie}})).json();
+  assert.equal(JSON.stringify(logged).includes('[[intent'),false,'marker never stored');
  }finally{await stop(proc);claude.close();tg.close();await rm(dir,{recursive:true,force:true})}
 });
 

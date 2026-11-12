@@ -205,3 +205,68 @@
 /* Short "Hire me!" bubbles */
 .site .av-bubble.is-short { width: auto; max-width: min(240px, calc(100vw - 24px)); }
 .site .av-bubble.is-short p { font: 700 1rem var(--display); }
+
+/* Stool and seated pose (front view: short thighs, shins hang to the floor). */
+.site .av-stool rect { fill: var(--ink-3); stroke: rgb(159 232 199 / 0.45); stroke-width: 1.2; }
+.site .av-stool .av-stool-seat { fill: #1f3a31; stroke: #9fe8c7; }
+.site .av-stool { opacity: 0; transition: opacity 0.3s; }
+.site .is-seated .av-stool { opacity: 1; }
+.site .av-thigh > rect { transition: transform 0.4s var(--ease); }
+.site .is-seated .av-body { animation: none; transform: translateY(30px); }
+.site .is-seated .av-thigh-l > rect { transform: scaleY(0.28); transform-origin: 69px 170px; }
+.site .is-seated .av-thigh-r > rect { transform: scaleY(0.28); transform-origin: 91px 170px; }
+.site .is-seated .av-shin { transform: translateY(-31px); }
+.site .is-seated.pose-sit .av-arm-l { transform: rotate(-8deg); }
+.site .is-seated.pose-sit .av-fore-l { transform: rotate(-35deg); }
+.site .is-seated.pose-sit .av-arm-r { transform: rotate(8deg); }
+.site .is-seated.pose-sit .av-fore-r { transform: rotate(35deg); }
+.site .is-rise .av-body { animation: av-rise 0.42s cubic-bezier(0.3, 1.5, 0.5, 1); }
+@keyframes av-rise { 0% { transform: translateY(30px); } 60% { transform: translateY(-6px); } 100% { transform: none; } }
+
+/* ---- Dark-mode flashlight ---- */
+.site .av-torch { display: none; }
+.site .torch-held .av-torch { display: inline; }
+.site .av-torch-handle { fill: #2b2f33; stroke: #50565c; stroke-width: 0.8; }
+.site .av-torch-head { fill: #3a4046; stroke: #5d646a; stroke-width: 0.8; }
+.site .av-torch-lens { fill: #ffe2a6; }
+.site .has-torch .av-torch-lens { fill: #fff1cc; filter: drop-shadow(0 0 2px #ffd089); }
+/* While aiming, the left arm follows Torch.jsx (smoothed); the elbow stays nearly straight. */
+.site .av-svg.has-torch .av-arm-l { transform: rotate(var(--torch-arm, 0deg)); animation: none; transition: transform 0.6s cubic-bezier(0.25, 0.8, 0.3, 1); }
+.site .av-svg.has-torch .av-fore-l { transform: rotate(-12deg); animation: none; }
+.site .torch-overlay { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 87; pointer-events: none; overflow: visible; mix-blend-mode: screen; }
+.site .torch-cone { filter: blur(1.5px); }
+.site .torch-glow { fill: #fff1cc; opacity: 0.55; filter: blur(3px); }
+/* The lit word gets a warm glow; colours and layout are untouched so it stays readable and clickable. */
+.site .av-lit { text-shadow: 0 0 14px rgb(255 205 130 / 0.55), 0 0 2px rgb(255 226 170 / 0.5); transition: text-shadow 0.5s; }
+.site .button.av-lit { box-shadow: 0 0 0 1px rgb(255 214 150 / 0.35), 0 0 22px -4px rgb(255 205 130 / 0.6); }
+
+/* ---- Hiring celebration (decorative; never intercepts clicks) ---- */
+.site .party { position: fixed; inset: 0; z-index: 96; pointer-events: none; overflow: hidden; }
+.site .party > span { position: absolute; pointer-events: none; }
+.site .party-confetti { top: -4%; background: var(--c); border-radius: 2px; animation: party-fall var(--t) cubic-bezier(0.3, 0.6, 0.5, 1) var(--d) both; }
+.site .party-confetti.is-round { border-radius: 50%; }
+.site .party-balloon { bottom: -90px; width: 34px; height: 42px; border-radius: 50% 50% 48% 48%; background: radial-gradient(circle at 34% 30%, rgb(255 255 255 / 0.55), var(--c) 38%); box-shadow: inset -4px -6px 0 rgb(0 0 0 / 0.08); animation: party-rise var(--t) ease-out var(--d) both; }
+.site .party-balloon::after { content: ''; position: absolute; left: 50%; top: 100%; width: 1px; height: 46px; background: rgb(255 255 255 / 0.5); }
+.site .party-streamer { top: -6px; width: 10px; height: 34vh; background: repeating-linear-gradient(170deg, var(--c) 0 14px, transparent 14px 22px); border-radius: 6px; transform-origin: top center; animation: party-streamer 1.4s ease-out var(--d) both, party-sway 1.6s ease-in-out calc(var(--d) + 1.4s) infinite alternate; }
+.site .party-sparkle { color: #fff3a8; font-size: 18px; text-shadow: 0 0 10px #f3b766; animation: party-twinkle 1.2s ease-in-out var(--d) infinite; }
+/* Reduced motion: a still, festive decoration. */
+.site .party.is-still > span { animation: none !important; }
+.site .party.is-still .party-confetti { opacity: 0.9; transform: rotate(var(--rot)); }
+.site .party.is-still .party-streamer { height: 18vh; }
+.site .party.is-still .party-balloon { bottom: auto; }
+@keyframes party-fall { 0% { transform: translate(0, -10vh) rotate(0); opacity: 1; } 85% { opacity: 1; } 100% { transform: translate(var(--drift), 110vh) rotate(var(--rot)); opacity: 0; } }
+@keyframes party-rise { 0% { transform: translateY(0); } 100% { transform: translateY(-115vh) rotate(-6deg); } }
+@keyframes party-streamer { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes party-sway { from { transform: rotate(-4deg); } to { transform: rotate(4deg); } }
+@keyframes party-twinkle { 0%, 100% { opacity: 0; transform: scale(0.4); } 50% { opacity: 1; transform: scale(1.1); } }
+@media (prefers-reduced-motion: reduce) {
+  .site .party > span, .site .av-svg.has-torch .av-arm-l { animation: none !important; transition: none !important; }
+}
+
+/* ---- Seat: anchored at Parker's home spot, purely decorative ---- */
+.site .av-seat { position: fixed; left: 0; bottom: 4px; width: 120px; z-index: 87; pointer-events: none; overflow: visible; }
+.site .av-seat .av-stool { opacity: 1; }
+/* Only Parker's drawn body is clickable: transparent parts of his box let clicks reach the page below. */
+.site .av-hit, .site .av-hit svg { pointer-events: none; }
+.site .av-hit .av-body { pointer-events: visiblePainted; cursor: pointer; }
+@media (max-width: 640px) { .site .av-seat { width: 84px; bottom: 2px; } }

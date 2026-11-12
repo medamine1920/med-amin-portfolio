@@ -40,7 +40,7 @@ export default function Site({ data, assistant, preview = false }) {
   return (
     <div className="site" ref={root} data-theme={theme} onPointerMove={magnet} onPointerOut={unmagnet}>
       {!preview && <CursorGlow />}
-      {!preview && assistant?.enabled && <DeferredAssistant data={data} config={assistant} />}
+      {!preview && assistant?.enabled && <DeferredAssistant data={data} config={assistant} theme={theme} />}
       {!preview && <a className="skip-link" href="#main">Skip to content</a>}
       {preview && <div className="preview-ribbon">Draft preview · Only you can see this version</div>}
       <Header data={data} preview={preview} theme={theme} toggleTheme={toggleTheme} />
@@ -203,7 +203,7 @@ function Header({ data, preview, theme, toggleTheme }) {
         </a>
         <div className="header-tools">
           <ThemeToggle theme={theme} onToggle={toggleTheme} />
-          <button className="menu-button" aria-expanded={open} aria-controls="site-nav" onClick={() => setOpen(o => !o)}>
+          <button type="button" className="menu-button" aria-expanded={open} aria-controls="site-nav" onClick={() => setOpen(o => !o)}>
             <span className="sr-only">{open ? 'Close menu' : 'Open menu'}</span>
             <span className="menu-icon" aria-hidden="true"><i /><i /></span>
           </button>
@@ -622,7 +622,7 @@ function Contact({ data, preview }) {
   }
 
   async function copy() {
-    try { await navigator.clipboard.writeText(data.email); setCopied(true); setTimeout(() => setCopied(false), 2200); } catch { location.href = 'mailto:' + data.email; }
+    try { await navigator.clipboard.writeText(data.email); setCopied(true); setTimeout(() => setCopied(false), 2200); } catch { /* clipboard unavailable: the address is visible and its mailto link still works; never navigate away */ }
   }
 
   const links = [data.linkedin && ['LinkedIn', data.linkedin], data.github && ['GitHub', data.github], ...(data.otherLinks || []).map(l => [l.label, l.url])].filter(Boolean);
@@ -652,7 +652,7 @@ function Contact({ data, preview }) {
               <svg viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="24" /><path d="M15 27l7 7 15-16" /></svg>
               <h3>Message sent.</h3>
               <p>Thanks for reaching out. I'll reply to your email soon.</p>
-              <button className="button ghost" onClick={() => setState('idle')}>Send another</button>
+              <button type="button" className="button ghost" onClick={() => setState('idle')}>Send another</button>
             </div>
           ) : (
             <form onSubmit={submit}>

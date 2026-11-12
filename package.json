@@ -10,7 +10,7 @@
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "start": "node server/index.js",
-    "test": "node --test server/*.test.js"
+    "test": "node --test server/*.test.js src/site/*.test.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.8.0"

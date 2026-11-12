@@ -69,7 +69,7 @@ function Rich({ text, hosts, onNavigate }) {
   return blocks;
 }
 
-export default function Assistant({ data, config }) {
+export default function Assistant({ data, config, theme }) {
   const first = firstName(data.brand);
   const section = useActiveSection();
   const saved = store.get('ai-chat', null);
@@ -81,6 +81,7 @@ export default function Assistant({ data, config }) {
   const [busy, setBusy] = useState(false);
   const [thinking, setThinking] = useState(THINKING[0]);
   const [handoff, setHandoff] = useState(null);
+  const [hireSignal, setHireSignal] = useState(0);   // bumps when the server reports clear hiring interest
   const showAvatar = config.avatar !== false;
   const panel = useRef(null), field = useRef(null), launcher = useRef(null), log = useRef(null), abort = useRef(null);
 
@@ -124,13 +125,16 @@ export default function Assistant({ data, config }) {
     const question = (text || '').trim().slice(0, 600);
     if (!question || busy) return;
     setOpen(true); setInput(''); setHandoff(null); setBusy(true); setThinking(THINKING[0]);
-    const history = [...(base ?? messages).filter(m => !m.pending && !m.error && !m.local), { role: 'user', content: question }];
-    setMessages([...history, { role: 'assistant', content: '', pending: true }]);
+    // Local messages (celebration, "Sent! ✅") stay visible but are never sent to the AI.
+    const shown = [...(base ?? messages).filter(m => !m.pending && !m.error), { role: 'user', content: question }];
+    const history = shown.filter(m => !m.local);
+    setMessages([...shown, { role: 'assistant', content: '', pending: true }]);
     const update = fn => setMessages(ms => { const copy = ms.slice(); copy[copy.length - 1] = fn(copy[copy.length - 1]); return copy; });
     const controller = new AbortController(); abort.current = controller;
     try {
       const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversation, messages: history.slice(-12).map(({ role, content }) => ({ role, content })) }), signal: controller.signal });
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw Error(e.error || 'The assistant is unavailable right now.'); }
+      let celebrateHire = false;
       const reader = res.body.getReader(), decoder = new TextDecoder();
       let buffer = '';
       for (;;) {
@@ -143,10 +147,17 @@ export default function Assistant({ data, config }) {
           if (!line) continue;
           const ev = JSON.parse(line);
           if (ev.t === 'd') update(m => ({ ...m, content: m.content + ev.v }));
+          else if (ev.t === 'intent' && ev.v === 'hiring_interest') celebrateHire = true;
           else if (ev.t === 'error') throw Error(ev.v);
         }
       }
       update(m => ({ role: 'assistant', content: m.content || 'Hmm, I lost my train of thought. Could you ask that again?' }));
+      // Once per conversation (the server enforces this too): party + a clear way to reach him.
+      if (celebrateHire && !store.get('ai-party-' + conversation, false)) {
+        store.set('ai-party-' + conversation, true);
+        setMessages(ms => [...ms, { role: 'assistant', content: `Now THAT'S worth celebrating! 🎉 Let's get you in touch with ${first}.`, local: true, action: 'contact' }]);
+        setHireSignal(n => n + 1);
+      }
     } catch (err) {
       if (err.name === 'AbortError') return;
       update(() => ({ role: 'assistant', content: err.message, error: true }));
@@ -179,7 +190,7 @@ export default function Assistant({ data, config }) {
 
   return (
     <div className={'ai' + (open ? ' is-open' : '')}>
-      {showAvatar && <Avatar data={data} first={first} name={config.name} initials={initials(data.brand)} open={open} mood={busy ? (messages.at(-1)?.content ? 'talking' : 'thinking') : 'listening'} questions={chips} onOpen={() => setOpen(true)} onAsk={q => send(q)} />}
+      {showAvatar && <Avatar data={data} first={first} name={config.name} theme={theme} hireSignal={hireSignal} initials={initials(data.brand)} open={open} mood={busy ? (messages.at(-1)?.content ? 'talking' : 'thinking') : 'listening'} questions={chips} onOpen={() => setOpen(true)} onAsk={q => send(q)} />}
       {teaser && !open && !showAvatar && (
         <div className="ai-teaser" role="status">
           <button type="button" className="ai-teaser-close" onClick={() => setTeaser(false)} aria-label="Dismiss">×</button>
@@ -208,6 +219,7 @@ export default function Assistant({ data, config }) {
               {m.pending && !m.content
                 ? <span className="ai-typing"><i /><i /><i /><span>{thinking}</span></span>
                 : m.role === 'user' ? <p>{m.content}</p> : <Rich text={m.content} hosts={hosts} onNavigate={onNavigate} />}
+              {m.action === 'contact' && <button type="button" className="ai-primary ai-contact" onClick={startHandoff}>Contact {first}</button>}
               {m.error && <button type="button" className="ai-retry" onClick={() => send(lastQuestion, messages.slice(0, -2))}>Try again</button>}
             </div>
           ))}

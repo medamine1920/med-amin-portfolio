@@ -1,54 +1,34 @@
 import React, { useEffect, useRef, useState } from 'react';
 import './avatar.css';
+import Torch from './Torch.jsx';
 
-// A cartoon (Bitmoji-style) version of the portfolio owner who walks around the page, pitches him, dunks
-// on the buttons visitors click, and can give a guided tour. Everything he says is written here from the
-// published content, so he never invents facts. Drawing: 160x270 SVG units, floor at y=262.
+// Parker: a cartoon (Bitmoji-style) version of the portfolio owner. One behaviour controller decides what he
+// does; see "Behaviour" below. He never scrolls, navigates, clicks, opens the chat or changes the theme on his
+// own: the page only moves when the visitor presses a tour button. Drawing: 160x270 SVG units, floor y=262.
 
 const VB_W = 160, VB_H = 270;
 const reduced = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const phone = () => typeof matchMedia === 'function' && matchMedia('(max-width: 640px)').matches;
 const pick = list => list[Math.floor(Math.random() * list.length)];
-const sleep = ms => new Promise(r => setTimeout(r, ms));
 const vw = () => document.documentElement.clientWidth;
 
-// ---- What he says ---------------------------------------------------------------------------------
-function pitch(section, data, first, name) {
-  const stat = data.stats?.[0];
-  const top = data.projects?.find(p => p.featured) || data.projects?.[0];
-  const recent = data.experience?.[0];
-  switch (section) {
-    case 'top': return { side: 'right', pose: 'wave', lines: [`Hi! I'm ${name}, the cartoon version of ${first}. The real one is busy building AI that doesn't make things up.`, `Hey 👋 I'm ${name}. Recruiting? I come with demos, results and zero hallucinations.`] };
-    case 'proof': return stat && { side: 'left', pose: 'point', lines: [`${stat.value} ${stat.label}. I'd frame it, but it keeps getting better.`, `See ${stat.value}? Not a typo. I asked twice.`] };
-    case 'work': return top && { side: 'left', pose: 'point', lines: [`Start with ${top.name}.${top.result ? ` ${top.result}.` : ''} Want my 30-second pitch?`, `My favourite: ${top.name}. Click "View details" and watch me dunk it.`] };
-    case 'approach': return { side: 'right', pose: 'think', lines: [`The trick: code computes every number, the model just explains it.`, `Rule #1: if an AI can't show its work, it doesn't ship.`] };
-    case 'experience': return { side: 'left', pose: 'thumbs', lines: [recent ? `Most recently ${recent.role} at ${recent.company}. Real jobs, real results.` : `Real jobs, real results.`, `Every line here shipped to real users. I checked the receipts.`] };
-    case 'contact': return { side: 'right', pose: 'present', lines: [`Here's the deal: one message from you lands on ${first}'s phone in seconds. 📱`, `Go on, say hi. I'll pretend I'm not excited.`] };
-    default: return null;
-  }
-}
+const SECTION_LABEL = { top: 'the introduction', proof: 'the highlights', work: 'the projects', approach: 'how he works', experience: 'his experience', contact: 'the contact section' };
+const FIT = ['Do I meet the requirements? 😄', 'So… do I meet the requirements? 😄'];
+
+// The guided tour, in page order. Only the visitor's clicks advance it.
 function tourSteps(data, first) {
   const stat = data.stats?.[0], recent = data.experience?.[0], top = data.projects?.find(p => p.featured) || data.projects?.[0];
   return [
-    stat && { sel: '.proof', side: 'left', pose: 'point', text: `Stop 1, the numbers: ${stat.value} ${stat.label}. Measured, not guessed.` },
-    top && { sel: '#work', side: 'left', pose: 'present', text: `Stop 2, the projects. ${top.name} is the star${top.result ? `: ${top.result}` : ''}. Every card opens into the full story.` },
-    { sel: '#approach', side: 'right', pose: 'think', text: `Stop 3, how ${first} works: prepare the data, find the evidence, let code compute, then evaluate everything.` },
-    { sel: '#experience', side: 'left', pose: 'thumbs', text: recent ? `Stop 4, where he's done it for real. Most recently ${recent.role} at ${recent.company}.` : `Stop 4, where he's done it for real.` },
-    { sel: '#contact', side: 'right', pose: 'present', text: `Last stop! A message here reaches ${first} in seconds. Shall we make it official?` },
-  ].filter(Boolean);
+    { sel: '#top', pose: 'wave', text: `Let's start at the top: ${first} builds AI systems people can trust, with evaluation and real workflows behind them.` },
+    stat && { sel: '.proof', pose: 'point', text: `The highlights: ${stat.value} ${stat.label}. Measured, not guessed.` },
+    top && { sel: '#work', pose: 'present', text: `The projects. ${top.name} is the star${top.result ? `: ${top.result}` : ''}. Every card opens into the full story.` },
+    { sel: '#approach', pose: 'think', text: `How ${first} works: prepare the data, find the evidence, let code compute, then evaluate everything.` },
+    { sel: '#experience', pose: 'thumbs', text: recent ? `Where he's done it for real. Most recently ${recent.role} at ${recent.company}.` : `Where he's done it for real.` },
+    { sel: '#contact', pose: 'present', text: `Last stop! A message here reaches ${first} in seconds.` },
+  ].filter(s => s && document.querySelector(s.sel));
 }
-const SAD = [`So… will you give me a chance or not? 😢`, `Animations off? Fine. I'll just stand here… hoping. 😢`];
-const HIRE = ['Hire me! 🙏', 'Psst… hire me? 🥺', 'Hiiire meee!', 'Did I mention? Hire me! 😄', 'H-I-R-E  M-E. Just saying.'];
-const FIT = ['Do I meet the requirements? 😄', 'So… do I meet the requirements? 😄'];
-const CHEERS = ['Boom! 🏀', 'Slam dunk!', 'Nice pick!', 'Ooh, good one!', 'Let\'s go!', 'And he scores!'];
-const WANDER = [
-  { pose: 'shrug', line: 'Still deciding? Take your time. I\'m paid in clicks.' },
-  { pose: 'wave', line: 'Psst. I answer questions too. Click me.' },
-  { pose: 'thumbs', line: 'Fun fact: I never sleep. He does, occasionally.' },
-  { pose: 'happy', line: null },
-  { pose: 'look', line: null },
-];
 
+// Which section is in view: used only to aim the torch, never to make Parker speak or move.
 function useSection() {
   const [section, setSection] = useState('top');
   useEffect(() => {
@@ -62,10 +42,27 @@ function useSection() {
   return section;
 }
 
-// ---- The drawing ----------------------------------------------------------------------------------
-function Character({ pose, motion, mood, faceLeft, look }) {
+// What the visitor is looking at when Parker first greets them (deep link, restored scroll, or the top).
+function arrivalContext() {
+  const hash = decodeURIComponent(location.hash.slice(1));
+  if (hash.startsWith('project-') && document.getElementById(hash)) return { kind: 'project' };
+  if (hash && SECTION_LABEL[hash]) return { kind: 'section', label: SECTION_LABEL[hash] };
+  if (scrollY > 200) return { kind: 'restored' };
+  return { kind: 'top' };
+}
+
+// The stool stays anchored at Parker's home spot, even when he steps aside for the chat.
+function Seat({ x }) {
   return (
-    <svg className={`av-svg pose-${pose} mood-${mood} ${motion ? 'is-' + motion : ''} ${faceLeft ? 'face-left' : ''}`} viewBox={`0 0 ${VB_W} ${VB_H}`} aria-hidden="true"
+    <svg className="av-seat" viewBox={`0 0 ${VB_W} ${VB_H}`} aria-hidden="true" style={{ transform: `translate3d(${Math.round(x)}px,0,0)` }}>
+      <g className="av-stool"><rect x="50" y="206" width="8" height="56" rx="2" /><rect x="102" y="206" width="8" height="56" rx="2" /><rect x="54" y="236" width="52" height="5" rx="2" /><rect className="av-stool-seat" x="44" y="198" width="72" height="12" rx="3" /></g>
+    </svg>
+  );
+}
+
+function Character({ pose, motion, mood, faceLeft, look, svgRef, torch }) {
+  return (
+    <svg ref={svgRef} className={`av-svg pose-${pose} mood-${mood} ${motion} ${faceLeft ? 'face-left' : ''} ${torch}`} viewBox={`0 0 ${VB_W} ${VB_H}`} aria-hidden="true"
       style={{ '--lx': look[0], '--ly': look[1] }}>
       <ellipse className="av-shadow" cx="80" cy="262" rx="34" ry="5.5" />
       <g className="av-body">
@@ -81,7 +78,10 @@ function Character({ pose, motion, mood, faceLeft, look }) {
         <g className="av-pin"><rect x="94" y="124" width="15" height="7" rx="2" /><text x="101.5" y="129.3">HIRE ME</text></g>
         {/* arms: upper arm pivots at the shoulder, forearm at the elbow */}
         <g className="av-arm av-arm-l"><rect x="45" y="106" width="18" height="38" rx="9" className="av-sleeve" />
-          <g className="av-fore av-fore-l"><rect x="46" y="136" width="16" height="34" rx="8" className="av-sleeve" /><circle cx="54" cy="174" r="8" className="av-hand" /><ellipse className="av-thumb" cx="60" cy="168" rx="3" ry="5" /></g></g>
+          <g className="av-fore av-fore-l"><rect x="46" y="136" width="16" height="34" rx="8" className="av-sleeve" />
+            {/* Flashlight: grip at the hand centre (54,174), lens centre (54,150), lens edges x 44..64. Torch.jsx rotates it around the grip. */}
+            <g className="av-torch" transform="rotate(180 54 174)"><rect className="av-torch-handle" x="50" y="157" width="8" height="21" rx="2.5" /><path className="av-torch-head" d="M44 150 L64 150 L60 158 L48 158 Z" /><ellipse className="av-torch-lens" cx="54" cy="150" rx="10" ry="2.2" /></g>
+            <circle cx="54" cy="174" r="8" className="av-hand" /><ellipse className="av-thumb" cx="60" cy="168" rx="3" ry="5" /></g></g>
         <g className="av-arm av-arm-r"><rect x="97" y="106" width="18" height="38" rx="9" className="av-sleeve" />
           <g className="av-fore av-fore-r"><rect x="98" y="136" width="16" height="34" rx="8" className="av-sleeve" /><circle cx="106" cy="174" r="8" className="av-hand" /><ellipse className="av-thumb" cx="100" cy="166" rx="3" ry="5.5" /></g></g>
         {/* head */}
@@ -113,200 +113,295 @@ function Character({ pose, motion, mood, faceLeft, look }) {
   );
 }
 
-// ---- Behaviour ------------------------------------------------------------------------------------
-export default function Avatar({ data, first, name = 'Parker', open, mood: chatMood, questions, onOpen, onAsk }) {
+// ---- Birthday-party effects for the hiring celebration (decorative: no clicks, no focus, no sound) ----
+const PARTY_COLORS = ['#9fe8c7', '#f3b766', '#ff8fa3', '#8fd3ff', '#c9a7ff', '#fff3a8'];
+function Party({ still }) {
+  const bits = useRef(null);
+  if (!bits.current) {
+    const r = (a, b) => a + Math.random() * (b - a);
+    bits.current = {
+      confetti: Array.from({ length: still ? 26 : 70 }, (_, i) => ({ x: r(0, 100), y: still ? r(4, 90) : 0, d: r(0, 0.9), t: r(2.2, 3.6), rot: r(-540, 540), drift: r(-12, 12), c: PARTY_COLORS[i % PARTY_COLORS.length], w: r(6, 11), round: i % 3 === 0 })),
+      balloons: Array.from({ length: 5 }, (_, i) => ({ x: 8 + i * 20 + r(-4, 4), d: r(0, 0.6), t: r(3.4, 4.6), c: PARTY_COLORS[(i + 1) % PARTY_COLORS.length], y: still ? r(8, 40) : 0 })),
+      streamers: Array.from({ length: 6 }, (_, i) => ({ x: 6 + i * 17 + r(-3, 3), d: r(0, 0.5), c: PARTY_COLORS[i % PARTY_COLORS.length] })),
+      sparkles: Array.from({ length: 10 }, () => ({ x: r(5, 95), y: r(8, 70), d: r(0, 2) })),
+    };
+  }
+  const b = bits.current;
+  return (
+    <div className={'party' + (still ? ' is-still' : '')} aria-hidden="true">
+      {b.streamers.map((p, i) => <span key={'s' + i} className="party-streamer" style={{ left: p.x + '%', '--d': p.d + 's', '--c': p.c }} />)}
+      {b.confetti.map((p, i) => <span key={'c' + i} className={'party-confetti' + (p.round ? ' is-round' : '')} style={{ left: p.x + '%', top: p.y + '%', width: p.w, height: p.round ? p.w : p.w * 0.45, '--d': p.d + 's', '--t': p.t + 's', '--rot': p.rot + 'deg', '--drift': p.drift + 'vw', '--c': p.c }} />)}
+      {b.balloons.map((p, i) => <span key={'b' + i} className="party-balloon" style={{ left: p.x + '%', top: still ? p.y + '%' : undefined, '--d': p.d + 's', '--t': p.t + 's', '--c': p.c }} />)}
+      {b.sparkles.map((p, i) => <span key={'k' + i} className="party-sparkle" style={{ left: p.x + '%', top: p.y + '%', '--d': p.d + 's' }}>✦</span>)}
+    </div>
+  );
+}
+
+// ---- Behaviour: one controller ----------------------------------------------------------------------
+// Exactly one primary state owns Parker at a time:
+//   seated → welcoming → idle ⇄ seated            (calm; nothing happens on its own after the welcome)
+//   idle/seated/welcoming → touring               (only when the visitor clicks "Take the tour")
+//   any → chatting                                (the visitor opened the chat)
+//   chatting/any → celebrating → chatting | idle  (server-validated hiring interest)
+// Every transition gets a new token and cancels the previous state's timers, animations and async steps;
+// a step whose token is stale can never resume and overwrite the new state.
+const PRIORITY = { seated: 0, idle: 0, welcoming: 1, touring: 2, chatting: 3, celebrating: 4 };
+
+export default function Avatar({ data, first, name = 'Parker', theme = 'dark', hireSignal = 0, open, mood: chatMood, questions, onOpen, onAsk }) {
   const section = useSection();
-  const wrap = useRef(null);
+  const wrap = useRef(null), svgRef = useRef(null);
   const pos = useRef({ x: 0, y: 0 });
-  const busy = useRef(0);          // token of the running move; 0 when idle
-  const said = useRef(new Set());
-  const timers = useRef({});
-  const [pose, setPose] = useState('wave');
-  const [motion, setMotion] = useState('');
+  const ctl = useRef({ state: 'seated', token: 0, timers: new Set() });
+  const [state, setState] = useState('seated');
+  const [pose, setPose] = useState('sit');
+  const [motion, setMotion] = useState('');            // walk | rise | crouch | air | land | ''
   const [mood, setMood] = useState('smile');
   const [faceLeft, setFaceLeft] = useState(true);
   const [look, setLook] = useState([0, 0]);
-  const [bubble, setBubble] = useState(null);   // { text, kind: 'pitch' | 'tour' | 'tour-end' }
-  const [tour, setTour] = useState(-1);
-  const [bursts, setBursts] = useState([]);
-  const steps = useRef(tourSteps(data, first)).current;
+  const [bubble, setBubble] = useState(null);           // { text, kind }
+  const [tourIndex, setTourIndex] = useState(-1);
+  const [party, setParty] = useState(null);
+  const [homeX, setHomeX] = useState(0);
+  const steps = useRef(null);
+  const scrollRaf = useRef(0), scrollGrab = useRef(null);
+  useEffect(() => () => { cancelAnimationFrame(scrollRaf.current); scrollGrab.current?.(); }, []);
+  const bubbleTimer = useRef(0), mouthTimer = useRef(0), lastSignal = useRef(hireSignal);
+  const sitting = useRef(!reduced());            // is he on his stool right now (read inside async steps)
+  const openRef = useRef(open); openRef.current = open;
+  const sit = () => { sitting.current = true; setPose('sit'); setMood('smile'); };
 
-  const size = () => { const w = wrap.current?.offsetWidth || 120; return { w, h: w * VB_H / VB_W, s: w / VB_W }; };
+  // ---- geometry ----
+  const width = () => wrap.current?.offsetWidth || (phone() ? 84 : 120);
+  const home = () => Math.max(4, vw() - width() - (phone() ? 6 : 16));
+  const chatSpot = () => (phone() ? home() : Math.max(8, vw() - 420 - width()));
+  const spotFor = s => (s === 'chatting' || (s === 'celebrating' && openRef.current) ? chatSpot() : home());
   const tr = (x, y) => `translate3d(${Math.round(x)}px,${Math.round(y)}px,0)`;
   const place = (x, y = 0) => { pos.current = { x, y }; if (wrap.current) wrap.current.style.transform = tr(x, y); };
-  const sideX = side => { const { w } = size(); if (phone()) return vw() - w - 4; if (open) return Math.max(8, vw() - 420 - w); return side === 'left' ? 12 : vw() - w - 12; };
-  const faceContent = () => setFaceLeft(pos.current.x > vw() / 2);
-  const clearT = name => clearTimeout(timers.current[name]);
-  const later = (name, ms, fn) => { clearT(name); timers.current[name] = setTimeout(fn, ms); };
 
-  const speak = (text, kind = 'pitch', ms = 7500) => {
-    setBubble({ text, kind });
-    setMood('talk'); later('mouth', 1700, () => setMood(m => (m === 'talk' ? 'smile' : m)));
-    if (kind === 'pitch' || kind === 'hire') later('bubble', ms, () => setBubble(b => (b?.kind === kind ? null : b)));
-  };
-
-  // Run one WAAPI step on the wrapper; resolves when done (or immediately when superseded).
-  const step = (to, duration, easing) => new Promise(resolve => {
-    const el = wrap.current; if (!el) return resolve();
-    const from = tr(pos.current.x, pos.current.y);
-    const a = el.animate([{ transform: from }, { transform: tr(to.x, to.y) }], { duration, easing, fill: 'forwards' });
-    a.onfinish = () => { place(to.x, to.y); a.cancel(); resolve(); };
-    a.oncancel = resolve;
-  });
-  const begin = () => { wrap.current?.getAnimations().forEach(a => a.cancel()); busy.current = Math.random(); return busy.current; };
-  const alive = t => busy.current === t;
-  const end = t => { if (alive(t)) { busy.current = 0; setMotion(''); } };
-
-  async function walkTo(x, run = false) {
-    const t = begin(), from = pos.current.x, dist = Math.abs(x - from);
-    if (reduced() || dist < 6) { place(x, 0); faceContent(); return end(t); }
-    setBubble(b => (b?.kind === 'pitch' ? null : b));
-    setFaceLeft(x < from); setMotion(run ? 'run' : 'walk');
-    await step({ x, y: 0 }, dist / (run ? 520 : 190) * 1000, 'linear');
-    if (!alive(t)) return; faceContent(); end(t);
-  }
-
-  async function jumpTo(x) {
-    const t = begin(), from = { ...pos.current };
-    if (reduced()) { place(x, 0); faceContent(); return end(t); }
-    setBubble(b => (b?.kind === 'pitch' ? null : b));
-    setFaceLeft(x < from.x);
-    setMotion('crouch'); await sleep(160); if (!alive(t)) return;
-    setMotion('air');
-    await step({ x: (from.x + x) / 2, y: -150 }, 380, 'cubic-bezier(.2,.7,.4,1)'); if (!alive(t)) return;
-    await step({ x, y: 0 }, 380, 'cubic-bezier(.6,0,.8,.4)'); if (!alive(t)) return;
-    setMotion('land'); await sleep(260); if (!alive(t)) return;
-    faceContent(); end(t);
-  }
-
-  const moveTo = x => (Math.abs(x - pos.current.x) > 320 ? jumpTo(x) : walkTo(x));
-
-  function burst(x, y, text) {
-    const id = Math.random();
-    setBursts(b => [...b, { id, x, y, text }]);
-    setTimeout(() => setBursts(b => b.filter(i => i.id !== id)), 900);
-  }
-
-  // Leap so the raised hand meets the button, slam it, land and celebrate. onSlam runs at the moment of impact.
-  async function dunk(target, onSlam) {
-    const r = target.getBoundingClientRect();
-    const t = begin(), { w, h, s } = size();
-    if (reduced() || phone()) { onSlam?.(); celebrate(); return end(t); }
-    setBubble(b => (b?.kind === 'tour' || b?.kind === 'tour-end' ? b : null));
-    const bx = r.left + r.width / 2, by = r.top + r.height / 2;
-    const goingLeft = bx < pos.current.x + w / 2;
-    setFaceLeft(goingLeft);
-    const handX = (goingLeft ? VB_W - 112 : 112) * s, handY = 40 * s;      // raised hand, relative to the wrapper
-    const floorTop = innerHeight - 4 - h;
-    const tx = Math.max(0, Math.min(vw() - w, bx - handX)), ty = Math.min(0, by - handY - floorTop);
-    setMood('surprised'); setPose('dunk'); setMotion('crouch'); await sleep(140); if (!alive(t)) { onSlam?.(); return; }
-    setMotion('air');
-    await step({ x: tx, y: ty }, Math.min(800, 360 + Math.abs(ty) * 0.6), 'cubic-bezier(.15,.75,.35,1)');
-    if (!alive(t)) { onSlam?.(); return; }
-    setPose('slam'); setMood('happy');
-    target.classList.add('av-dunked'); setTimeout(() => target.classList.remove('av-dunked'), 450);
-    burst(bx, by, pick(CHEERS));
-    onSlam?.();
-    await sleep(110); if (!alive(t)) return;
-    await step({ x: tx, y: 0 }, Math.min(650, 240 + Math.abs(ty) * 0.45), 'cubic-bezier(.55,0,.9,.45)'); if (!alive(t)) return;
-    setMotion('land'); await sleep(240); if (!alive(t)) return;
-    setMotion(''); setPose('happy');
-    await step({ x: tx, y: -26 }, 160, 'ease-out'); await step({ x: tx, y: 0 }, 160, 'ease-in');
-    if (!alive(t)) return;
-    later('calm', 900, () => { setMood('smile'); setPose('idle'); });
-    end(t);
-  }
-
-  async function celebrate() {
-    const t = begin();
-    setMood('happy'); setPose('happy');
-    if (!reduced()) { setMotion('crouch'); await sleep(120); setMotion('air'); await step({ x: pos.current.x, y: -50 }, 220, 'ease-out'); await step({ x: pos.current.x, y: 0 }, 220, 'ease-in'); setMotion('land'); await sleep(200); }
-    later('calm', 1000, () => { setMood('smile'); setPose('idle'); });
-    end(t);
-  }
-
-  // Enter: jump in from beyond the right edge.
-  useEffect(() => {
-    if (reduced()) {
-      place(sideX('right'), 0); faceContent(); setPose('sad');
-      later('enter', 600, () => { speak(pick(SAD), 'sad'); setMood('sad'); });
-      return () => Object.values(timers.current).forEach(clearTimeout);
+  // ---- controller primitives ----
+  const alive = tk => ctl.current.token === tk;
+  function stopMotion() {
+    // Freeze wherever an interrupted animation currently is (no snapping), then cancel it.
+    const el = wrap.current;
+    for (const a of el?.getAnimations() || []) {
+      const m = new DOMMatrixReadOnly(getComputedStyle(el).transform);
+      a.cancel(); place(m.m41, 0);
     }
-    place(vw() + 30, 0);
-    later('enter', 400, async () => { await jumpTo(sideX('right')); setPose('wave'); if (!said.current.has('top')) { said.current.add('top'); speak(pitch('top', data, first, name).lines[0] + ''); } });
-    return () => Object.values(timers.current).forEach(clearTimeout);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    for (const a of el?.querySelector('.av-hit')?.getAnimations() || []) a.cancel();
+  }
+  function start(next) {
+    const c = ctl.current;
+    c.timers.forEach(clearTimeout); c.timers.clear();
+    stopMotion(); setMotion(''); stopScroll();
+    c.token += 1; c.state = next; setState(next);
+    return c.token;
+  }
+  // Ask for a transition; refused if a higher-priority state is running (unless forced).
+  function request(next, force = false) {
+    if (!force && PRIORITY[next] < PRIORITY[ctl.current.state]) return 0;
+    return start(next);
+  }
+  const after = (tk, ms, fn) => { const id = setTimeout(() => { ctl.current.timers.delete(id); if (alive(tk)) fn(); }, ms); ctl.current.timers.add(id); };
+  const wait = (tk, ms) => new Promise(res => after(tk, ms, () => res(true)) || setTimeout(() => res(false), ms + 5));
 
-  // Section pitches (each once per visit), unless a tour is running or the chat is open.
-  useEffect(() => {
-    if (open || tour >= 0 || section === 'top') return;
-    const p = pitch(section, data, first, name);
-    if (!p) return;
-    later('section', 350, async () => {
-      if (busy.current) return;
-      await moveTo(sideX(p.side));
-      // With motion turned off he stays sad until the visitor gives him a chance.
-      const sad = reduced() && !accepted.current;
-      setPose(sad ? 'sad' : p.pose);
-      if (!said.current.has(section)) { said.current.add(section); speak(pick(p.lines)); if (sad) setMood('sad'); }
+  function speak(text, kind, hideMs = 0) {
+    clearTimeout(bubbleTimer.current); clearTimeout(mouthTimer.current);
+    setBubble({ text, kind });
+    setMood(m => (m === 'sad' ? m : 'talk'));
+    mouthTimer.current = setTimeout(() => setMood(m => (m === 'talk' ? 'smile' : m)), 1600);
+    if (hideMs) bubbleTimer.current = setTimeout(() => setBubble(b => (b?.kind === kind ? null : b)), hideMs);
+  }
+  const hush = () => { clearTimeout(bubbleTimer.current); setBubble(null); };
+
+  // Walk along the floor to x (never jumps, never leaves the viewport). Resolves false if interrupted.
+  function walkTo(tk, x) {
+    return new Promise(resolve => {
+      const el = wrap.current, from = pos.current.x;
+      x = Math.max(4, Math.min(vw() - width() - 4, x));
+      if (!el || reduced() || Math.abs(x - from) < 4) { place(x); setFaceLeft(true); return resolve(true); }
+      setFaceLeft(x < from); setMotion('walk');
+      const a = el.animate([{ transform: tr(from, 0) }, { transform: tr(x, 0) }], { duration: Math.min(1600, Math.abs(x - from) * 5), easing: 'ease-in-out', fill: 'forwards' });
+      a.onfinish = () => { if (!alive(tk)) return resolve(false); place(x); a.cancel(); setMotion(''); setFaceLeft(true); resolve(true); };
+      a.oncancel = () => resolve(false);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [section, open, tour]);
+  }
+  async function standUp(tk) {
+    if (!sitting.current) return true;
+    sitting.current = false; setPose('idle');
+    if (reduced()) return true;
+    setMotion('rise');
+    const ok = await wait(tk, 420);
+    if (alive(tk)) setMotion('');
+    return ok;
+  }
 
-  // Free wandering when nothing else is going on.
-  useEffect(() => {
-    if (open || reduced()) return;
-    let stop = false;
-    const tick = () => later('wander', 14000 + Math.random() * 10000, async () => {
-      if (stop) return;
-      if (!busy.current && tour < 0 && !bubble) {
-        const { w } = size();
-        const x = phone() ? vw() - w - 4 - Math.random() * Math.min(120, vw() / 3) : 12 + Math.random() * (vw() - w - 24);
-        await walkTo(x, Math.random() < 0.2);
-        const w8 = pick(WANDER);
-        setPose(w8.pose); if (w8.pose === 'happy') celebrate();
-        if (w8.line && Math.random() < 0.6) speak(w8.line, 'pitch', 5500);
-      }
-      tick();
-    });
-    tick();
-    return () => { stop = true; clearT('wander'); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, tour, bubble]);
+  // ---- states ----
+  async function welcome() {
+    const tk = request('welcoming'); if (!tk) return;
+    const ctx = arrivalContext();
+    const text = ctx.kind === 'project' ? `Welcome! 👋 I'm ${name}, ${first}'s AI sidekick. Great pick, this project is a good place to start. Ask me anything about it.`
+      : ctx.kind === 'section' ? `Welcome! 👋 I'm ${name}, ${first}'s AI sidekick. You've landed on ${ctx.label}. Ask me anything, or take the tour.`
+      : ctx.kind === 'restored' ? `Welcome back! 👋 I'm ${name}, ${first}'s AI sidekick. Pick up where you left off, take the tour, or ask me anything.`
+      : `Welcome! 👋 I'm ${name}, ${first}'s AI sidekick. Make yourself at home—explore the projects, take a tour, or ask me anything.`;
+    if (!reduced()) { setMood('surprised'); setLook([0, -0.6]); if (!(await wait(tk, 320))) return; }
+    if (!(await standUp(tk))) return;
+    setPose('wave'); speak(text, 'welcome', 9000); setMood('happy');
+    after(tk, 2200, () => goIdle());
+  }
+  function goIdle() {
+    const tk = request('idle', true); if (!tk) return;
+    setPose('idle'); setMood(m => (m === 'talk' ? m : 'smile'));
+    // Calm: after a long quiet spell he sits back down on his stool (only if he's at home).
+    after(tk, 30000, () => { if (Math.abs(pos.current.x - home()) < 6 && request('seated')) sit(); });
+  }
+  async function wake(tk) { return standUp(tk); }
 
-  // The chat: step beside the panel and act the conversation.
-  useEffect(() => { if (open) { setBubble(null); setTour(-1); walkTo(sideX('right'), true); } }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Clicking Parker: show what he can do. (Visitor-initiated; never moves the page.)
+  function onPress() {
+    if (ctl.current.state === 'touring' || ctl.current.state === 'celebrating') return;
+    if (ctl.current.state === 'chatting') return onOpen();
+    const tk = start('idle');
+    wake(tk).then(ok => { if (!ok) return; setPose('wave'); speak(pick(['At your service! 😄 What shall we do?', 'Hey! Want the tour or a quick chat?']), 'menu'); goIdleKeepBubble(); });
+  }
+  function onDouble() {
+    if (!['idle', 'seated', 'welcoming'].includes(ctl.current.state)) return;
+    const tk = start('idle');
+    wake(tk).then(ok => { if (!ok) return; setPose('happy'); speak(pick(FIT), 'fit'); setMood('happy'); hop(tk); goIdleKeepBubble(); });
+  }
+  function yes() {
+    const tk = start('idle');
+    setPose('happy'); setMood('happy'); hop(tk);
+    speak(pick(['Knew it! 🥳 Let\'s make it official.', 'Yesss! You won\'t regret it. 🥳']), 'yes'); setMood('happy');
+    goIdleKeepBubble();
+  }
+  // Return to idle without clearing the current bubble or pose.
+  function goIdleKeepBubble() {
+    after(ctl.current.token, 2500, () => { const t2 = start('idle'); setPose('idle'); after(t2, 30000, () => { if (Math.abs(pos.current.x - home()) < 6 && request('seated')) sit(); }); });
+  }
+  // A small in-place hop (no travel).
+  function hop() {
+    if (reduced()) return;
+    wrap.current?.querySelector('.av-hit')?.animate([{ transform: 'translateY(0)' }, { transform: 'translateY(-22px)' }, { transform: 'translateY(0)' }], { duration: 360, easing: 'ease-out' });
+  }
+
+  // ---- guided tour (visitor-driven; the page scrolls only inside these click handlers) ----
+  // Parker's own cancellable scroll: native smooth scrolling can't be reliably stopped mid-way, and the visitor's
+  // wheel, touch or keys take over at once.
+  function stopScroll() {
+    cancelAnimationFrame(scrollRaf.current); scrollRaf.current = 0;
+    scrollGrab.current?.(); scrollGrab.current = null;
+  }
+  function scrollToSection(el) {
+    stopScroll();
+    if (!el) return;
+    const pad = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0;
+    const max = document.documentElement.scrollHeight - innerHeight;
+    const to = Math.max(0, Math.min(max, el.getBoundingClientRect().top + scrollY - pad));
+    if (reduced()) { window.scrollTo({ top: to, behavior: 'instant' }); return; }
+    const from = scrollY, dist = to - from, dur = Math.min(900, 350 + Math.abs(dist) * 0.35), t0 = performance.now();
+    const grab = () => stopScroll();
+    const evs = ['wheel', 'touchstart', 'keydown', 'mousedown'];
+    evs.forEach(e => addEventListener(e, grab, { passive: true, capture: true }));
+    scrollGrab.current = () => evs.forEach(e => removeEventListener(e, grab, { capture: true }));
+    const step = now => {
+      const p = Math.min(1, (now - t0) / dur), ease = p < .5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2;
+      window.scrollTo({ top: from + dist * ease, behavior: 'instant' });
+      if (p < 1) scrollRaf.current = requestAnimationFrame(step); else stopScroll();
+    };
+    scrollRaf.current = requestAnimationFrame(step);
+  }
+  function tourStep(i) {
+    const list = steps.current || (steps.current = tourSteps(data, first));
+    if (i >= list.length) {
+      const tk = start('idle'); setTourIndex(-1);
+      setPose('happy'); setMood('happy'); hop(tk);
+      speak(`That's the tour! 🎉 You now know ${first} better than his LinkedIn does. Ask me something, or message him directly?`, 'tour-end');
+      after(tk, 1800, () => goIdle());
+      return;
+    }
+    const tk = start('touring');
+    setTourIndex(i);
+    const s = list[i];
+    scrollToSection(document.querySelector(s.sel));
+    wake(tk).then(ok => { if (!ok) return; setPose(s.pose); speak(s.text, 'tour'); });
+  }
+  function endTour() { stopScroll(); setTourIndex(-1); hush(); goIdle(); }
+
+  // ---- chat ----
   useEffect(() => {
-    if (!open) return;
+    if (open) {
+      if (ctl.current.state === 'celebrating') return;            // the party finishes first, then chatting
+      if (ctl.current.state === 'touring') stopScroll();
+      setTourIndex(-1); hush();
+      const tk = start('chatting');
+      wake(tk).then(ok => ok && walkTo(tk, chatSpot())).then(ok => { if (ok && alive(tk)) setPose('listen'); });
+    } else if (ctl.current.state === 'chatting') {
+      const tk = start('idle');
+      walkTo(tk, home()).then(ok => { if (ok && alive(tk)) goIdle(); });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+  useEffect(() => {
+    if (state !== 'chatting') return;                              // expressions only; never moves the page
     if (chatMood === 'thinking') { setPose('think'); setMood('think'); }
     else if (chatMood === 'talking') { setPose('present'); setMood('talk'); }
     else { setPose('listen'); setMood('smile'); }
-  }, [open, chatMood]);
+  }, [state, chatMood]);
 
-  // Dunk on the buttons the visitor clicks. In-page links wait for the slam, then navigate.
+  // ---- hiring celebration (server-validated intent, once per conversation upstream) ----
   useEffect(() => {
-    const onClick = e => {
-      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || open) return;
-      const el = e.target.closest?.('a, button');
-      if (!el || el.closest('.av, .ai, form') || !el.closest('.site')) return;
-      const href = el.tagName === 'A' ? el.getAttribute('href') : null;
-      if (href && /^#[\w-]+$/.test(href) && !reduced() && !phone() && !busy.current) {
-        e.preventDefault();
-        dunk(el, () => {
-          if (location.hash === href) document.querySelector(href)?.scrollIntoView({ behavior: 'smooth' });
-          else location.hash = href;
-        });
-      } else if (!busy.current) {
-        dunk(el);
+    if (!hireSignal || hireSignal === lastSignal.current) return;
+    lastSignal.current = hireSignal;
+    const tk = request('celebrating', true);
+    setParty({ id: hireSignal, still: reduced() });
+    setTourIndex(-1);
+    if (!openRef.current) speak(`Now THAT'S worth celebrating! 🎉 Let's get you in touch with ${first}.`, 'party');
+    clearTimeout(mouthTimer.current); setMood('happy'); setPose('happy');
+    // Ends after ~5s whatever happens to the flips (a background tab may pause animations).
+    after(tk, 5000, () => {
+      setParty(null); setBubble(b => (b?.kind === 'party' ? null : b));
+      if (openRef.current) { start('chatting'); setPose('listen'); setMood('smile'); }
+      else { const t2 = start('idle'); setPose('idle'); setMood('smile'); walkTo(t2, home()).then(ok => { if (ok && alive(t2)) goIdle(); }); }
+    });
+    if (reduced()) return;
+    (async () => {
+      if (!(await standUp(tk))) return;
+      const hit = wrap.current?.querySelector('.av-hit'), x = pos.current.x;
+      for (let i = 0; i < 2; i++) {
+        if (!alive(tk)) return;
+        setMotion('crouch'); if (!(await wait(tk, 120))) return;
+        setMotion('air');
+        hit?.animate([{ transform: 'translateY(0) rotate(0deg)' }, { transform: `translateY(-120px) rotate(${i ? -180 : 180}deg)` }, { transform: `translateY(0) rotate(${i ? -360 : 360}deg)` }], { duration: 640, easing: 'cubic-bezier(.3,.1,.3,1)' });
+        if (!(await wait(tk, 640))) return;
+        setMotion('land'); if (!(await wait(tk, 200))) return;
       }
-    };
-    document.addEventListener('click', onClick);
-    return () => document.removeEventListener('click', onClick);
+      if (alive(tk)) { setMotion(''); setPose('happy'); setMood('happy'); place(x); }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [hireSignal]);
+  // Keep his face happy while partying, even if the chat mood changes in the same moment.
+  useEffect(() => { if (state === 'celebrating') { setPose('happy'); setMood('happy'); } }, [state, chatMood]);
 
-  // Eyes follow the cursor.
+  // ---- arrival: seated at home, then one welcome ~800ms later ----
+  useEffect(() => {
+    const x = home(); setHomeX(x); place(x); setFaceLeft(true);
+    if (reduced()) { sitting.current = false; setPose('idle'); }
+    const id = setTimeout(() => { if (ctl.current.state === 'seated') welcome(); }, reduced() ? 300 : 800);
+    return () => { clearTimeout(id); ctl.current.timers.forEach(clearTimeout); ctl.current.timers.clear(); ctl.current.token += 1; clearTimeout(bubbleTimer.current); clearTimeout(mouthTimer.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ---- resize / orientation: keep him (and the seat) inside the viewport, without animating ----
+  useEffect(() => {
+    let frame = 0;
+    const onResize = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => { setHomeX(home()); stopMotion(); setMotion(''); place(spotFor(ctl.current.state)); }); };
+    addEventListener('resize', onResize); addEventListener('orientationchange', onResize);
+    return () => { removeEventListener('resize', onResize); removeEventListener('orientationchange', onResize); cancelAnimationFrame(frame); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ---- eyes follow the cursor (purely visual) ----
+  const faceLeftRef = useRef(faceLeft); faceLeftRef.current = faceLeft;
   useEffect(() => {
     if (reduced() || phone()) return;
     let frame = 0, px = 0, py = 0;
@@ -320,99 +415,36 @@ export default function Avatar({ data, first, name = 'Parker', open, mood: chatM
     addEventListener('pointermove', onMove, { passive: true });
     return () => { removeEventListener('pointermove', onMove); cancelAnimationFrame(frame); };
   }, []);
-  const faceLeftRef = useRef(faceLeft); faceLeftRef.current = faceLeft;
 
-  useEffect(() => {
-    const onResize = () => { if (!busy.current) place(Math.min(pos.current.x, vw() - size().w - 4), 0); };
-    addEventListener('resize', onResize);
-    return () => removeEventListener('resize', onResize);
-  }, []);
-
-  // ---- Guided tour ----
-  async function goTour(i, button) {
-    if (button) await dunk(button);
-    if (i >= steps.length) {
-      setTour(-1); setPose('happy'); setMood('happy'); celebrate();
-      const r = wrap.current.getBoundingClientRect(); burst(r.left + r.width / 2, r.top + 20, '🎉 Tour complete!');
-      speak(`That's the tour! 🎉 You now know ${first} better than his LinkedIn does. Want to ask me something, or message him directly?`, 'tour-end');
-      return;
-    }
-    const s = steps[i];
-    setTour(i); setBubble(null);
-    document.querySelector(s.sel)?.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth', block: 'start' });
-    await sleep(reduced() ? 50 : 650);
-    await moveTo(sideX(s.side));
-    setPose(s.pose);
-    speak(s.text, 'tour');
-  }
-
-  // "Hire me!" every 30-45 seconds while nothing else is happening.
-  const bubbleRef = useRef(null); bubbleRef.current = bubble;
-  const accepted = useRef(false);
-  useEffect(() => {
-    if (open) return;
-    const tick = () => later('hire', 30000 + Math.random() * 15000, () => {
-      if (!busy.current && tour < 0 && !bubbleRef.current) {
-        const still = reduced() && !accepted.current;
-        setPose(still ? 'sad' : pick(['wave', 'present', 'happy']));
-        speak(pick(HIRE), 'hire', 4000);
-        if (still) setMood('sad');
-      }
-      tick();
-    });
-    tick();
-    return () => clearT('hire');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, tour]);
-
-  // Single click: what shall we do? Double click: happy, and fishing for a compliment.
-  function onPress() {
-    later('click', 260, () => {
-      if (!busy.current) celebrate();
-      later('menu', reduced() ? 0 : 650, () => speak(pick(['At your service! 😄 What shall we do?', 'You rang? Tour, questions, or straight to the point?', 'Hey! Want the grand tour or a quick chat?']), 'menu'));
-    });
-  }
-  function onDouble() {
-    clearT('click'); clearT('menu');
-    accepted.current = true;
-    celebrate();
-    later('menu', reduced() ? 0 : 650, () => { speak(pick(FIT), 'fit'); setMood('happy'); setPose('happy'); });
-  }
-  function yes() {
-    accepted.current = true;
-    celebrate();
-    const r = wrap.current?.getBoundingClientRect(); if (r) burst(r.left + r.width / 2, r.top + 20, '🥳');
-    later('menu', reduced() ? 0 : 650, () => { speak(pick(['Knew it! 🥳 Let\'s make it official.', 'Yesss! You won\'t regret it. 🥳']), 'yes'); setMood('happy'); setPose('happy'); });
-  }
-
+  // ---- render ----
   const hidden = open && phone();
-  const onLeft = pos.current.x < vw() / 2;
+  const dark = theme === 'dark';
+  const seated = state === 'seated' && pose === 'sit';
+  const torchActive = dark && !hidden && !open && !party && !motion && ['idle', 'seated', 'touring', 'welcoming'].includes(state) && !['happy'].includes(pose);
   const kind = bubble?.kind;
-  const tourButton = tour < 0 && steps.length > 1 && <button type="button" className="av-primary" onClick={e => goTour(0, e.currentTarget)}>Take the 60-second tour 🎯</button>;
+  const list = steps.current || [];
+  const tourButton = <button type="button" className="av-primary" onClick={() => tourStep(0)}>Take the tour 🎯</button>;
   return (
     <>
-      <div ref={wrap} className={'av' + (hidden ? ' is-hidden' : '') + (onLeft ? ' on-left' : '')}>
+      <Seat x={homeX} />
+      <div ref={wrap} className={'av' + (hidden ? ' is-hidden' : '')} data-state={state}>
         {bubble && !open && !motion && (
-          <div className={'av-bubble' + (kind === 'hire' ? ' is-short' : '')} role="status">
-            <button type="button" className="av-bubble-x" onClick={() => { setBubble(null); setTour(-1); }} aria-label="Dismiss">×</button>
-            {kind === 'tour' && <span className="av-step">Tour · {tour + 1} / {steps.length}</span>}
+          <div className="av-bubble" role="status">
+            <button type="button" className="av-bubble-x" onClick={() => (kind === 'tour' ? endTour() : hush())} aria-label="Dismiss">×</button>
+            {kind === 'tour' && <span className="av-step">Tour · {tourIndex + 1} / {list.length}</span>}
             <p>{bubble.text}</p>
             <div className="av-bubble-actions">
               {kind === 'tour' ? <>
-                <button type="button" className="av-primary" onClick={e => goTour(tour + 1, e.currentTarget)}>{tour + 1 < steps.length ? 'Next stop →' : 'Finish the tour 🏁'}</button>
-                <button type="button" className="av-hide" onClick={() => { setTour(-1); setBubble(null); }}>End tour</button>
+                <button type="button" className="av-primary" onClick={() => tourStep(tourIndex + 1)}>{tourIndex + 1 < list.length ? 'Next →' : 'Finish 🏁'}</button>
+                <button type="button" className="av-hide" onClick={endTour}>End tour</button>
+              </> : kind === 'party' ? <>
+                <a className="av-primary" href="#contact" onClick={hush}>Contact {first}</a>
               </> : kind === 'tour-end' || kind === 'yes' ? <>
-                <a className="av-primary" href="#contact" onClick={() => setBubble(null)}>Message {first}</a>
+                <a className="av-primary" href="#contact" onClick={hush}>Message {first}</a>
                 <button type="button" className="av-ask" onClick={onOpen}>Ask me anything</button>
-              </> : kind === 'sad' ? <>
-                <button type="button" className="av-primary" onClick={yes}>Of course! 😊</button>
-                {tourButton}
-                <button type="button" className="av-ask" onClick={onOpen}>Chat with me</button>
               </> : kind === 'fit' ? <>
                 <button type="button" className="av-primary" onClick={yes}>Absolutely! 🎉</button>
                 <button type="button" className="av-ask" onClick={() => onAsk('Why is he a great fit for an AI engineering role?')}>Convince me</button>
-              </> : kind === 'hire' ? <>
-                <button type="button" className="av-ask" onClick={() => onAsk('Why should I hire him?')}>Why should I? 🤔</button>
               </> : <>
                 {tourButton}
                 {questions.slice(0, 1).map(q => <button type="button" key={q} className="av-ask" onClick={() => onAsk(q)}>{q}</button>)}
@@ -422,10 +454,11 @@ export default function Avatar({ data, first, name = 'Parker', open, mood: chatM
           </div>
         )}
         <button type="button" className="av-hit" onClick={onPress} onDoubleClick={onDouble} aria-label={`${name}, ${first}'s assistant: tour or chat`} title="Click me! (or double-click 😉)">
-          <Character pose={pose} motion={motion} mood={mood} faceLeft={faceLeft} look={look} />
+          <Character svgRef={svgRef} pose={pose} motion={(seated ? 'is-seated ' : '') + (motion ? 'is-' + motion : '')} mood={mood} faceLeft={faceLeft} look={look} torch={dark ? (torchActive ? 'torch-held has-torch' : 'torch-held') : ''} />
         </button>
       </div>
-      {bursts.map(b => <span key={b.id} className="av-burst" style={{ left: b.x, top: b.y }} aria-hidden="true">{b.text}</span>)}
+      <Torch svgRef={svgRef} avatarRef={wrap} dark={dark && !hidden} active={torchActive} section={section} reducedMotion={reduced()} />
+      {party && <Party key={party.id} still={party.still} />}
     </>
   );
 }

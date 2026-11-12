@@ -6,7 +6,7 @@ import { resolve, join, relative, isAbsolute, sep, extname } from 'node:path';
 import { randomUUID, randomBytes, createHmac, scryptSync, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { notifyChat, notifyMessage, notifyVisit, sendTelegram, startDigest, notifySettings, isBot, device, referrerHost, visitorId } from './notify.js';
-import { assistantAvailable, assistantModel, assistantProvider, assistantSettings, cleanChatRequest, dailyLimit, demoMode, streamReply } from './assistant.js';
+import { assistantAvailable, assistantModel, assistantProvider, assistantSettings, cleanChatRequest, createIntentFilter, validateHiringIntent, dailyLimit, demoMode, streamReply } from './assistant.js';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const dataDir = resolve(process.env.DATA_DIR || join(root, 'data'));
@@ -40,6 +40,7 @@ const published = () => JSON.parse(db.prepare("SELECT content FROM documents WHE
 const drafts = () => db.prepare("SELECT content,revision,updated_at FROM documents WHERE kind='draft'").get();
 const loginAttempts = new Map(), contactAttempts = new Map(), viewAttempts = new Map(), chatAttempts = new Map(), chatDaily = new Map();
 const chatBudget = { day: '', used: 0 };
+const celebrated = new Set(); // conversations that already got the hiring celebration
 const trustProxy = process.env.TRUST_PROXY === 'true';
 const ownHost = (process.env.SITE_HOST || 'medamine.work').replace(/^www\./,'');
 const now = () => new Date().toISOString();
@@ -113,9 +114,17 @@ async function chat(req,res){
  const ac=new AbortController();res.on('close',()=>{if(!res.writableEnded)ac.abort()});
  const send=o=>res.write(JSON.stringify(o)+'\n');
  try{
-  let {text,stopReason}=await streamReply({content:published(),messages,onText:v=>send({t:'d',v}),signal:ac.signal});
+  // Intent markers are stripped before anything reaches the visitor or the log.
+  const filter=createIntentFilter(v=>send({t:'d',v}));
+  const {stopReason}=await streamReply({content:published(),messages,onText:v=>filter.push(v),signal:ac.signal});
+  let {text,intents}=filter.finish();
   if(stopReason==='refusal'&&!text.trim()){text='Sorry, I can’t help with that one. Ask me about the projects, experience or availability, or leave a message!';send({t:'d',v:text})}
   if(text)insert.run(conversation,'assistant',text,now());
+  // Celebrate only clear, affirmative hiring interest: the model's signal AND the server's check, once per conversation.
+  if(intents.has('hiring_interest')&&validateHiringIntent(question)&&!celebrated.has(conversation)){
+   celebrated.add(conversation);if(celebrated.size>5000)celebrated.delete(celebrated.values().next().value);
+   send({t:'intent',v:'hiring_interest'});
+  }
   send({t:'done'});
  }catch(err){
   if(ac.signal.aborted)return;
