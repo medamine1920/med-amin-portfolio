@@ -73,7 +73,7 @@ export default function Assistant({ data, config, theme }) {
   const first = firstName(data.brand);
   const section = useActiveSection();
   const saved = store.get('ai-chat', null);
-  const [conversation] = useState(() => saved?.id || newId());
+  const [conversation, setConversation] = useState(() => saved?.id || newId());
   const [messages, setMessages] = useState(() => saved?.messages || []);
   const [open, setOpen] = useState(false);
   const [teaser, setTeaser] = useState(false);
@@ -166,7 +166,8 @@ export default function Assistant({ data, config, theme }) {
     }
   }, [busy, conversation, messages]);
 
-  const reset = () => { abort.current?.abort(); setMessages([]); setHandoff(null); setBusy(false); store.set('ai-chat', null); };
+  // A new conversation gets a new id: its own log in /admin and its own once-per-conversation celebration.
+  const reset = () => { abort.current?.abort(); setConversation(newId()); setMessages([]); setHandoff(null); setBusy(false); store.set('ai-chat', null); };
   // Return focus to whatever opens the chat: the avatar, or the round launcher when the avatar is off.
   function focusLauncher() { requestAnimationFrame(() => (launcher.current?.offsetParent ? launcher.current : document.querySelector('.av-hit'))?.focus()); }
   const close = () => { setOpen(false); focusLauncher(); };

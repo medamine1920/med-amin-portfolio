@@ -117,11 +117,12 @@ async function chat(req,res){
   // Intent markers are stripped before anything reaches the visitor or the log.
   const filter=createIntentFilter(v=>send({t:'d',v}));
   const {stopReason}=await streamReply({content:published(),messages,onText:v=>filter.push(v),signal:ac.signal});
-  let {text,intents}=filter.finish();
+  let {text}=filter.finish();
   if(stopReason==='refusal'&&!text.trim()){text='Sorry, I can’t help with that one. Ask me about the projects, experience or availability, or leave a message!';send({t:'d',v:text})}
   if(text)insert.run(conversation,'assistant',text,now());
-  // Celebrate only clear, affirmative hiring interest: the model's signal AND the server's check, once per conversation.
-  if(intents.has('hiring_interest')&&validateHiringIntent(question)&&!celebrated.has(conversation)){
+  // Celebrate clear, affirmative hiring interest once per conversation. The server's check decides; the model's
+  // marker is optional (smaller models often forget it) and can never trigger a celebration on its own.
+  if(validateHiringIntent(question)&&!celebrated.has(conversation)){
    celebrated.add(conversation);if(celebrated.size>5000)celebrated.delete(celebrated.values().next().value);
    send({t:'intent',v:'hiring_interest'});
   }

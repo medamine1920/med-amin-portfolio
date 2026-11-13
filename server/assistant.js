@@ -205,24 +205,33 @@ export function cleanChatRequest(body) {
 
 // ---- Hiring-interest signal ---------------------------------------------------------------------
 // The model appends HIRING_MARKER when a visitor clearly says they want to hire the owner. The server
-// strips it from the stream (it never reaches the chat or the log) and only reports the intent when the
-// visitor's message also passes validateHiringIntent, so a model mistake can't trigger a celebration.
+// strips it from the stream (it never reaches the chat or the log). The celebration itself depends only on
+// validateHiringIntent, so a forgotten marker can't hide one and a model mistake can't cause one.
 export const HIRING_MARKER = '[[intent:hiring_interest]]';
 
 const NEGATIVE = /\b(not|no|never|nobody|neither|nor|without)\b|n['’]t\b|\bcannot\b/;
-const HYPOTHETICAL = /\b(if|whether|suppose|supposing|hypothetical(?:ly)?|imagine|imagining|would you|should (?:i|we)|why|what if|in case|unless|assuming)\b/;
+const HYPOTHETICAL = /\b(if|whether|suppose|supposing|hypothetical(?:ly)?|imagine|imagining|should (?:i|we)|why|what if|in case|unless|assuming)\b/;
 const QUOTED = /["“”«»]/;
+const HIRE = String.raw`(?:hire|recruit|onboard|bring (?:him|you) on(?:board)?|offer (?:him|you)|make (?:him|you) (?:an|a|the) offer)`;
+const WHO = String.raw`(?:him|you|med amin)`;
 const POSITIVE = [
-  /\b(?:i|we)\b[^.?!]{0,30}\b(?:want|wanna|would like|['’]d like|would love|['’]d love|are ready|am ready|have decided|decided|plan|intend|are keen|am keen|are looking|am looking)\b[^.?!]{0,15}\b(?:hire|recruit|onboard|bring (?:him|you) on|offer (?:him|you))\b/,
-  /\bhow (?:can|do|could) (?:we|i) (?:hire|recruit|onboard|bring (?:him|you) on|make (?:him|you) an offer)\b/,
-  /\b(?:i|we)(?:['’]re| are| am) (?:hiring|recruiting) (?:him|you|med amin)\b/,
-  /\b(?:i|we)(?:['’]d| would) like to offer (?:him|you) (?:a|the|an) (?:role|job|position|contract|offer)\b/,
+  new RegExp(String.raw`\b(?:i|we)\b[^.?!]{0,30}\b(?:want|wanna|would like|['’]d like|would love|['’]d love|are ready|am ready|have decided|decided|plan|intend|are keen|am keen|are looking|am looking)\b[^.?!]{0,15}\b${HIRE}\b`),
+  new RegExp(String.raw`\bhow (?:can|do|could) (?:we|i) ${HIRE}\b`),
+  // "I'll hire you", "We will definitely hire him", "We're going to hire you", "I hire you"
+  new RegExp(String.raw`(?:^|[,:] ?|\b(?:so|ok|okay|then|and|yes|great|well|now)\b,? )(?:i|we)(?:['’]ll| will| shall| are going to| am going to|['’]re going to|['’]m going to| gonna)?(?: (?:definitely|really|totally|absolutely|gladly|happily|surely|certainly|just|now|officially|so|also))? ${HIRE} ${WHO}\b`),
+  new RegExp(String.raw`\b(?:i|we)(?:['’]re|['’]m| are| am) (?:hiring|recruiting|offering) ${WHO}\b`),
+  new RegExp(String.raw`\b(?:you['’]?re|your|you are|he['’]?s|he is) hired\b`),
+  new RegExp(String.raw`\b(?:i|we)\b[^.?!]{0,25}\b(?:want|would like|['’]d like|would love|['’]d love)\b ${WHO} (?:on|in|to join) (?:our|my|the) team\b`),
+  /\blet['’]?s hire (?:him|you|med amin)\b/,
+  /\bwelcome (?:aboard|on board|to (?:the|our) team)\b/,
 ];
 
+// Checked per sentence, so "Great chat! We'll hire you. When can you start?" counts, while a negative or
+// hypothetical in the same sentence as the hiring words ("If we hire him…", "We won't hire him") does not.
 export function validateHiringIntent(message) {
   const m = String(message || '').toLowerCase().replace(/\s+/g, ' ').trim();
-  if (!m || m.length > 400 || QUOTED.test(m) || NEGATIVE.test(m) || HYPOTHETICAL.test(m)) return false;
-  return POSITIVE.some(re => re.test(m));
+  if (!m || m.length > 400 || QUOTED.test(m)) return false;
+  return m.split(/[.?!;]+/).map(s => s.trim()).some(s =>!NEGATIVE.test(s) && !HYPOTHETICAL.test(s) && POSITIVE.some(re => re.test(s)));
 }
 
 // Streams text through onText while removing [[intent:…]] markers, even when a marker is split across

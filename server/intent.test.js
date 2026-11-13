@@ -14,6 +14,22 @@ test('clear, affirmative hiring interest is accepted', () => {
     "We're hiring him for our ML platform team",
     'I am ready to hire Med Amin',
     'We’d love to bring him on board',
+    'I will hire you',
+    "I'll hire him",
+    'We are going to hire you!',
+    "We'll definitely hire him",
+    "You're hired!",
+    'Youre hired',
+    'your hired',
+    "I'm hiring you",
+    'We want you on our team',
+    'Great chat, we would love to hire you, would you be free Monday?',
+    'Welcome aboard!',
+    "We'd like to make you an offer",
+    'Okay I decided, I hire you',
+    "Let's hire him",
+    'We are offering you the position',
+    'Great profile. We will hire you. When can you start?',
   ]) assert.equal(validateHiringIntent(m), true, m);
 });
 
@@ -31,6 +47,13 @@ test('questions, hypotheticals, quotes and negatives are rejected', () => {
     'We never hire remote engineers',
     'What does he work on?',
     'hire',
+    'Can we hire him?',
+    'We could hire him',
+    'We might hire him next year',
+    'If he passes, we will hire him',
+    "We won't hire him",
+    'Would you hire him?',
+    'Did you hire anyone?',
     '',
   ]) assert.equal(validateHiringIntent(m), false, m);
 });
