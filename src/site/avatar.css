@@ -270,3 +270,64 @@
 .site .av-hit, .site .av-hit svg { pointer-events: none; }
 .site .av-hit .av-body { pointer-events: visiblePainted; cursor: pointer; }
 @media (max-width: 640px) { .site .av-seat { width: 84px; bottom: 2px; } }
+
+/* Expressiveness: silent, in-place gestures (idle fidgets + reactions). `.av-svg.act-*` outranks poses (also seated);
+   left-arm acts are never picked while the torch is held. Each has a static end state, so reduced motion still shows a face. */
+.site .av-svg.act-look .av-head { animation: av-lookaround 2.6s ease-in-out 1; }
+.site .av-svg.act-wink .av-eye:first-child { transform: scaleY(0.1); animation: av-wink 1.3s ease-in-out 1; }
+.site .av-svg.act-wink .av-brows path:last-child { transform: translateY(-3px); }
+.site .av-svg.act-wink .av-mouth-smile { transform: rotate(-9deg) translate(1.5px, -0.5px); transform-box: fill-box; transform-origin: center; }
+.site .av-svg.act-wink .av-blush { opacity: 0.35; }
+.site .av-svg.act-nod .av-head { transform: rotate(-3deg); animation: av-nod 0.5s ease-in-out 4; }
+.site .av-svg.act-brows .av-brows { transform: translateY(-4px); animation: av-brows 0.65s ease-in-out 2; }
+.site .av-svg.act-watch .av-arm-l { animation: none; transform: rotate(-28deg); }
+.site .av-svg.act-watch .av-fore-l { transform: rotate(-98deg); }
+.site .av-svg.act-watch .av-head { transform: rotate(7deg) translateY(1px); }
+.site .av-svg.act-watch .av-iris { transform: translate(-1.6px, 2px); }
+.site .av-svg.act-think .av-arm-r { animation: none; transform: rotate(32deg); }
+.site .av-svg.act-think .av-fore-r { transform: rotate(-152deg); }
+.site .av-svg.act-think .av-head { animation: av-ponder 2.4s ease-in-out infinite; }
+.site .av-svg.act-think .av-iris { transform: translate(1.6px, -2px); }
+.site .av-svg.act-think .av-mouth-smile { transform: translate(3px, 0.5px) scale(0.55, 0.4); transform-box: fill-box; transform-origin: center; }
+.site .av-svg.act-think .av-brows path:first-child { transform: translateY(-3px) rotate(-6deg); transform-box: fill-box; transform-origin: center; }
+.site .av-svg:is(.act-thumbs, .act-interest, .act-hi, .act-cheer, .act-groove, .act-pin) .av-blush { opacity: 0.42; }
+.site .av-svg.act-thumbs .av-arm-r { animation: none; transform: rotate(-30deg); }
+.site .av-svg.act-thumbs .av-fore-r { transform: rotate(-120deg); }
+.site .av-svg.act-thumbs .av-fore-r .av-thumb { opacity: 1; }
+.site .av-svg.act-thumbs .av-head { transform: rotate(-4deg); }
+.site .av-svg.act-stretch .av-arm-l { animation: none; transform: rotate(165deg); }
+.site .av-svg.act-stretch .av-arm-r { animation: none; transform: rotate(-165deg); }
+.site .av-svg.act-stretch .av-fore-l { transform: rotate(-22deg); }
+.site .av-svg.act-stretch .av-fore-r { transform: rotate(22deg); }
+.site .av-svg.act-stretch .av-eye { animation: none; transform: scaleY(0.15); }
+.site .av-svg.act-stretch .av-head { transform: rotate(-3deg); }
+.site .av-svg.act-pin .av-arm-r { animation: none; transform: rotate(24deg); }
+.site .av-svg.act-pin .av-fore-r { transform: rotate(-136deg); animation: av-polish 0.28s ease-in-out 6 alternate; }
+.site .av-svg.act-pin .av-head { transform: rotate(-6deg); }
+.site .av-svg.act-pin .av-pin rect { animation: av-shine 2s ease-in-out 1; }
+.site .av-svg.act-groove .av-body { animation: av-groove 0.42s ease-in-out infinite alternate; }
+.site .av-svg.act-groove .av-head { animation: av-nod 0.42s ease-in-out infinite; }
+.site .av-svg.act-groove .av-arm-l { animation: none; transform: rotate(32deg); }
+.site .av-svg.act-groove .av-fore-l { transform: rotate(-75deg); }
+.site .av-svg.act-groove .av-arm-r { animation: none; transform: rotate(-32deg); }
+.site .av-svg.act-groove .av-fore-r { transform: rotate(75deg); }
+.site .av-svg.act-hi .av-arm-r { animation: none; transform: rotate(-150deg); }
+.site .av-svg.act-hi .av-fore-r { animation: av-wave 0.45s ease-in-out infinite alternate; }
+.site .av-svg.act-hi .av-head { transform: rotate(-5deg); }
+.site .av-svg.act-interest .av-head { transform: rotate(-7deg); }
+.site .av-svg.act-cheer .av-arm-r { animation: none; transform: rotate(-165deg); }
+.site .av-svg.act-cheer .av-fore-r { animation: av-pump 0.3s ease-in-out infinite alternate; }
+.site .av-svg.act-wow .av-head { transform: rotate(-3deg) translateY(-2px); }
+.site .av-svg.act-wow .av-eye-white { transform: scale(1.22); transform-box: fill-box; transform-origin: center; }
+.site .av-svg:is(.act-interest, .act-wow) .av-brows { transform: translateY(-4.5px); }
+.site .av-svg:is(.act-hi, .act-interest, .act-cheer, .act-groove, .act-stretch) .av-mouth-smile,
+.site .av-svg:is(.act-hi, .act-interest, .act-cheer, .act-groove, .act-stretch, .act-wow) .av-mouth-talk { opacity: 0; animation: none; }
+.site .av-svg:is(.act-hi, .act-interest, .act-cheer, .act-groove, .act-stretch) .av-mouth-open { opacity: 1; }
+.site .av-svg.act-wow .av-mouth-smile { opacity: 0; }
+.site .av-svg.act-wow .av-mouth-open { opacity: 1; transform: scale(0.7, 1.15); transform-box: fill-box; transform-origin: center top; }
+
+@keyframes av-wink { 0%, 100% { transform: scaleY(1); } 12%, 72% { transform: scaleY(0.1); } }
+@keyframes av-brows { 0%, 100% { transform: none; } 40% { transform: translateY(-5px); } }
+@keyframes av-polish { from { transform: rotate(-130deg); } to { transform: rotate(-143deg); } }
+@keyframes av-groove { from { transform: translateY(0) rotate(-2.5deg); } to { transform: translateY(-3px) rotate(2.5deg); } }
+@keyframes av-shine { 0%, 100% { fill: #f3b766; } 50% { fill: #ffe2a8; } }

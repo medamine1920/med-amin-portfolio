@@ -13,6 +13,14 @@ const pick = list => list[Math.floor(Math.random() * list.length)];
 const vw = () => document.documentElement.clientWidth;
 
 const SECTION_LABEL = { top: 'the introduction', proof: 'the highlights', work: 'the projects', approach: 'how he works', experience: 'his experience', contact: 'the contact section' };
+// Silent in-place gestures: idle fidgets and reactions. Durations in ms.
+const ACT_MS = { look: 2600, wink: 1300, nod: 2000, brows: 1300, watch: 2200, think: 2600, thumbs: 1800, stretch: 2100, pin: 2000, groove: 2500, hi: 0, interest: 1600, wow: 1400, cheer: 1700 };
+const STAND_ACTS = ['look', 'wink', 'nod', 'brows', 'watch', 'think', 'thumbs', 'stretch', 'pin', 'groove'];
+const SEAT_ACTS = ['look', 'wink', 'nod', 'brows', 'watch', 'think', 'stretch', 'thumbs'];
+const FACE_ACTS = ['wink', 'brows', 'interest', 'wow'];        // reduced motion: face only
+const LEFT_ARM_ACTS = ['watch', 'stretch', 'groove'];
+const HOVER_TARGETS = '.pcard, .stat, .steps li, .timeline li, .pills-tech li, .button, .email, .copy-button, a[href="#contact"]';
+const CTA_TARGETS = '.button.primary, .email, .copy-button, a[href="#contact"]';
 const FIT = ['Do I meet the requirements? 😄', 'So… do I meet the requirements? 😄'];
 
 // The guided tour, in page order. Only the visitor's clicks advance it.
@@ -60,9 +68,9 @@ function Seat({ x }) {
   );
 }
 
-function Character({ pose, motion, mood, faceLeft, look, svgRef, torch }) {
+function Character({ pose, motion, mood, faceLeft, look, svgRef, torch, act }) {
   return (
-    <svg ref={svgRef} className={`av-svg pose-${pose} mood-${mood} ${motion} ${faceLeft ? 'face-left' : ''} ${torch}`} viewBox={`0 0 ${VB_W} ${VB_H}`} aria-hidden="true"
+    <svg ref={svgRef} className={`av-svg pose-${pose} mood-${mood} ${motion} ${faceLeft ? 'face-left' : ''} ${torch} ${act ? 'act-' + act : ''}`} viewBox={`0 0 ${VB_W} ${VB_H}`} aria-hidden="true"
       style={{ '--lx': look[0], '--ly': look[1] }}>
       <ellipse className="av-shadow" cx="80" cy="262" rx="34" ry="5.5" />
       <g className="av-body">
@@ -162,6 +170,9 @@ export default function Avatar({ data, first, name = 'Parker', theme = 'dark', h
   const [bubble, setBubble] = useState(null);           // { text, kind }
   const [tourIndex, setTourIndex] = useState(-1);
   const [party, setParty] = useState(null);
+  const [act, setAct] = useState('');                  // idle fidget (in place, silent)
+  const [react, setReact] = useState('');              // reaction to the visitor (in place, silent)
+  const reactTimer = useRef(0), quiet = useRef({ calm: false, still: false });
   const [homeX, setHomeX] = useState(0);
   const steps = useRef(null);
   const scrollRaf = useRef(0), scrollGrab = useRef(null);
@@ -193,7 +204,7 @@ export default function Avatar({ data, first, name = 'Parker', theme = 'dark', h
   function start(next) {
     const c = ctl.current;
     c.timers.forEach(clearTimeout); c.timers.clear();
-    stopMotion(); setMotion(''); stopScroll(); setDunking(false);
+    stopMotion(); setMotion(''); stopScroll(); setDunking(false); setReact('');
     c.token += 1; c.state = next; setState(next);
     return c.token;
   }
@@ -474,6 +485,61 @@ export default function Avatar({ data, first, name = 'Parker', theme = 'dark', h
     return () => { removeEventListener('pointermove', onMove); cancelAnimationFrame(frame); };
   }, []);
 
+  // ---- expressiveness: silent, in-place gestures and reactions (never moves him, talks or touches the page) ----
+  const isDark = theme === 'dark';
+  const restful = (state === 'idle' || state === 'seated') && !open && !motion && !party && !dunking;
+  quiet.current = { calm: restful, still: restful && !bubble };
+  // A reaction to what the visitor does; "hi" (hovering Parker) is allowed while his bubble is up.
+  function flash(r, ms = ACT_MS[r]) {
+    if (!(r === 'hi' ? quiet.current.calm : quiet.current.still)) return;
+    if (reduced() && !FACE_ACTS.includes(r)) r = 'brows';
+    clearTimeout(reactTimer.current); setReact(r);
+    if (ms) reactTimer.current = setTimeout(() => setReact(x => (x === r ? '' : x)), ms);
+  }
+  // Idle fidgets every few seconds while nothing else is going on.
+  useEffect(() => {
+    if (!restful || bubble) { setAct(''); return; }
+    let id = 0, last = '';
+    const next = () => {
+      id = setTimeout(() => {
+        let list = reduced() ? FACE_ACTS : state === 'seated' ? SEAT_ACTS : STAND_ACTS;
+        if (isDark) list = list.filter(a => !LEFT_ARM_ACTS.includes(a));   // his left hand holds the torch
+        const a = pick(list.filter(x => x !== last)); last = a;
+        setAct(a);
+        id = setTimeout(() => { setAct(''); next(); }, ACT_MS[a]);
+      }, 2500 + Math.random() * 3000);
+    };
+    next();
+    return () => { clearTimeout(id); setAct(''); };
+  }, [restful, !!bubble, state, isDark]);
+  // Reactions to the page: hovering work or CTAs, switching theme, writing a message.
+  useEffect(() => {
+    let lastEl = null, at = 0, typedAt = 0;
+    const onOver = e => {
+      if (e.pointerType && e.pointerType !== 'mouse') return;
+      const el = e.target.closest?.(HOVER_TARGETS);
+      if (!el || el === lastEl || el.closest('.av, .ai-panel')) return;
+      lastEl = el;
+      const now = performance.now(); if (now - at < 2200) return; at = now;
+      flash(el.matches(CTA_TARGETS) ? 'thumbs' : 'interest');
+    };
+    const onInput = e => {
+      if (!e.target.closest?.('#contact form')) return;
+      const now = performance.now(); if (now - typedAt < 6000) return; typedAt = now;
+      flash('cheer');
+    };
+    document.addEventListener('pointerover', onOver, { passive: true });
+    document.addEventListener('input', onInput, { passive: true });
+    return () => { document.removeEventListener('pointerover', onOver); document.removeEventListener('input', onInput); clearTimeout(reactTimer.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const firstTheme = useRef(true);
+  useEffect(() => {
+    if (firstTheme.current) { firstTheme.current = false; return; }
+    flash('wow');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [theme]);
+
   // ---- render ----
   const hidden = open && phone();
   const dark = theme === 'dark';
@@ -511,8 +577,10 @@ export default function Avatar({ data, first, name = 'Parker', theme = 'dark', h
             </div>
           </div>
         )}
-        <button type="button" className="av-hit" onClick={onPress} onDoubleClick={onDouble} aria-label={`${name}, ${first}'s assistant: tour or chat`} title="Click me! (or double-click 😉)">
-          <Character svgRef={svgRef} pose={pose} motion={(seated ? 'is-seated ' : '') + (motion ? 'is-' + motion : '')} mood={mood} faceLeft={faceLeft} look={look} torch={dark ? (torchActive ? 'torch-held has-torch' : 'torch-held') : ''} />
+        <button type="button" className="av-hit" onClick={onPress} onDoubleClick={onDouble}
+          onPointerEnter={e => { if (e.pointerType === 'mouse') { clearTimeout(reactTimer.current); flash('hi'); } }}
+          onPointerLeave={() => { clearTimeout(reactTimer.current); reactTimer.current = setTimeout(() => setReact(r => (r === 'hi' ? '' : r)), 500); }} aria-label={`${name}, ${first}'s assistant: tour or chat`} title="Click me! (or double-click 😉)">
+          <Character svgRef={svgRef} pose={pose} motion={(seated ? 'is-seated ' : '') + (motion ? 'is-' + motion : '')} mood={mood} faceLeft={faceLeft} look={look} act={react || act} torch={dark ? (torchActive ? 'torch-held has-torch' : 'torch-held') : ''} />
         </button>
       </div>
       <Torch svgRef={svgRef} avatarRef={wrap} dark={dark && !hidden} active={torchActive} section={section} reducedMotion={reduced()} />
