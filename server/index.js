@@ -5,7 +5,7 @@ import { createReadStream, existsSync } from 'node:fs';
 import { resolve, join, relative, isAbsolute, sep, extname } from 'node:path';
 import { randomUUID, randomBytes, createHmac, scryptSync, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { notifyChat, notifyMessage, notifyVisit, sendTelegram, startDigest, notifySettings, isBot, device, referrerHost, visitorId } from './notify.js';
+import { notifyChat, notifyHire, notifyMessage, notifyVisit, sendTelegram, startDigest, notifySettings, isBot, device, referrerHost, visitorId } from './notify.js';
 import { assistantAvailable, assistantModel, assistantProvider, assistantSettings, cleanChatRequest, createIntentFilter, validateHiringIntent, dailyLimit, demoMode, streamReply } from './assistant.js';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -89,12 +89,25 @@ async function file(res,path,mime,extra={}){try{const info=await stat(path);head
 const mimes={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.ico':'image/x-icon','.pdf':'application/pdf'};
 function contentMatches(buffer,mime){if(mime==='image/png')return buffer.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]));if(mime==='image/jpeg')return buffer[0]===255&&buffer[1]===216&&buffer[2]===255;if(mime==='image/webp')return buffer.toString('ascii',0,4)==='RIFF'&&buffer.toString('ascii',8,12)==='WEBP';if(mime==='application/pdf')return buffer.toString('ascii',0,5)==='%PDF-';return false}
 const escapeHtml=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// ---- Link previews and search engines (built from the published content) ----
+const siteUrl=`https://${ownHost}`;
+const summaryText=(s,max)=>{s=String(s||'').replace(/\s+/g,' ').trim();if(s.length<=max)return s;const cut=s.slice(0,max-1);return cut.slice(0,Math.max(cut.lastIndexOf(' '),max*0.6)).replace(/[\s,;:.—-]+$/,'')+'…'};
+function shareTags(data,title,description){
+ const meta=(attr,key,value)=>value?`<meta ${attr}="${key}" content="${escapeHtml(value)}">`:'';
+ const image=`${siteUrl}/og.png`;
+ const person={'@context':'https://schema.org','@type':'Person',name:data.brand,jobTitle:data.role||'AI Engineer',description,url:siteUrl+'/',
+  ...(data.portrait?{image:siteUrl+data.portrait}:{}),...(data.location?{address:{'@type':'PostalAddress',addressLocality:data.location}}:{}),
+  sameAs:[data.linkedin,data.github,...data.otherLinks.map(l=>l.url)].filter(Boolean),knowsAbout:data.skills.slice(0,20)};
+ // JSON-LD is data, not executed script, so the strict CSP doesn't block it; "<" is escaped so it can't close the tag.
+ return `<link rel="canonical" href="${siteUrl}/">`+meta('property','og:type','profile')+meta('property','og:site_name',ownHost)+meta('property','og:title',title)+meta('property','og:description',description)+meta('property','og:url',siteUrl+'/')+meta('property','og:image',image)+meta('property','og:image:width','1200')+meta('property','og:image:height','630')+meta('property','og:image:alt',`${data.brand}, ${data.role||'AI Engineer'}`)+meta('property','og:locale','en_US')+meta('name','twitter:card','summary_large_image')+meta('name','twitter:title',title)+meta('name','twitter:description',description)+meta('name','twitter:image',image)+
+  `<script type="application/ld+json">${JSON.stringify(person).replace(/</g,'\\u003c')}</script>`;
+}
 async function page(res,admin=false){
  const data=published(),template=await readFile(join(distDir,'index.html'),'utf8');
  const title=admin?'Portfolio editor':`${data.brand} — AI Engineer`;
- const description=admin?'Private portfolio editor':data.intro.slice(0,190);
+ const description=admin?'Private portfolio editor':summaryText(data.intro,190);
  const snapshot=admin?'':`<main><h1>${escapeHtml(data.headline)}</h1><p>${escapeHtml(data.intro)}</p><h2>Selected work</h2>${data.projects.map(p=>`<article><h3>${escapeHtml(p.name)}</h3><p>${escapeHtml(p.summary)}</p></article>`).join('')}<h2>Experience</h2>${data.experience.map(e=>`<article><h3>${escapeHtml(e.role)} · ${escapeHtml(e.company)}</h3><p>${escapeHtml(e.description)}</p></article>`).join('')}</main>`;
- const html=template.replace(/<title>[^<]*<\/title>/,`<title>${escapeHtml(title)}</title>`).replace(/<meta name="description" content="[^"]*">/,`<meta name="description" content="${escapeHtml(description)}">`).replace('<div id="root"></div>',`<div id="root">${snapshot}</div>`);
+ const html=template.replace(/<title>[^<]*<\/title>/,`<title>${escapeHtml(title)}</title>`).replace(/<meta name="description" content="[^"]*">/,`<meta name="description" content="${escapeHtml(description)}">`).replace('<div id="root"></div>',`<div id="root">${snapshot}</div>`).replace('</head>',admin?'</head>':shareTags(data,title,description)+'</head>');
  headers(res,200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store',...(admin?{'X-Robots-Tag':'noindex, nofollow'}:{})});res.end(html);
 }
 // Visitor chat with the assistant. Streams newline-delimited JSON: {t:"d",v:text}…, then {t:"done"} or {t:"error",v}.
@@ -125,6 +138,7 @@ async function chat(req,res){
   if(validateHiringIntent(question)&&!celebrated.has(conversation)){
    celebrated.add(conversation);if(celebrated.size>5000)celebrated.delete(celebrated.values().next().value);
    send({t:'intent',v:'hiring_interest'});
+   notifyHire({question,earlier:messages.slice(0,-1).filter(m=>m.role==='user').slice(-3).map(m=>m.content),test:!!session(req)});
   }
   send({t:'done'});
  }catch(err){
@@ -217,7 +231,9 @@ async function handler(req,res){try{
   if(!referenced&&!session(req))return fail(res,404,'Not found');
   return file(res,join(mediaDir,row.filename),row.mime,{'Cache-Control':'private, max-age=3600'});
  }
- if(path==='/resume.pdf'&&method==='GET')return file(res,join(root,'server','seed-resume.pdf'),'application/pdf',{'Content-Disposition':'attachment; filename="Med-Amin-Gnichi-Resume.pdf"'});
+ if(path==='/resume.pdf'&&method==='GET')return file(res,join(root,'server','seed-resume.pdf'),'application/pdf',{'Content-Disposition':'attachment; filename="Med-Amin-Gnichi-CV.pdf"'});
+ if(path==='/robots.txt'&&method==='GET'){headers(res,200,{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'public, max-age=3600'});return res.end(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\n\nSitemap: ${siteUrl}/sitemap.xml\n`)}
+ if(path==='/sitemap.xml'&&method==='GET'){const day=(db.prepare("SELECT updated_at FROM documents WHERE kind='published'").get()?.updated_at||now()).slice(0,10);headers(res,200,{'Content-Type':'application/xml; charset=utf-8','Cache-Control':'public, max-age=3600'});return res.end(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${siteUrl}/</loc><lastmod>${day}</lastmod></url></urlset>\n`)}
  if(path.startsWith('/api/'))return fail(res,404,'Not found');
  if(method!=='GET'&&method!=='HEAD')return fail(res,405,'Method not allowed');
  if(path==='/'||path==='/admin'||path==='/admin/')return page(res,path.startsWith('/admin'));

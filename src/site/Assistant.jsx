@@ -15,7 +15,7 @@ const store = {
   set(key, value) { try { sessionStorage.setItem(key, JSON.stringify(value)); } catch { /* private mode */ } },
 };
 
-const THINKING = ['Reading the résumé…', 'Checking the projects…', 'Asking the semantic layer…', 'Gathering the facts…'];
+const THINKING = ['Reading the CV…', 'Checking the projects…', 'Asking the semantic layer…', 'Gathering the facts…'];
 
 // Questions that fit what the visitor is looking at right now.
 function sectionQuestions(section, data, base) {

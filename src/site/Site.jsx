@@ -236,7 +236,7 @@ function Hero({ data }) {
           <p className="lede" data-reveal style={{ '--d': '0.35s' }}>{data.intro}</p>
           <div className="hero-actions" data-reveal style={{ '--d': '0.45s' }}>
             <a className="button primary" href="#work" data-magnetic>See the work <span aria-hidden="true">↘</span></a>
-            <a className="button ghost" href={data.resume || '/resume.pdf'} download data-magnetic>Download résumé <span aria-hidden="true">↓</span></a>
+            <a className="button ghost" href={data.resume || '/resume.pdf'} download data-magnetic>Download CV <span aria-hidden="true">↓</span></a>
           </div>
           <dl className="hero-facts" data-reveal style={{ '--d': '0.55s' }}>
             {data.availability && <div><dt>Available for</dt><dd>{data.availability}</dd></div>}

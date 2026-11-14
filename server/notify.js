@@ -22,7 +22,8 @@ export async function sendTelegram(text) {
     const res = await fetch(`${apiBase}/bot${token}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text: clip(text, 3900), disable_web_page_preview: true }),
+      // Visitor text is already clipped to one line where it's inserted; keep the message's own line breaks.
+      body: JSON.stringify({ chat_id: chatId, text: text.length > 3900 ? text.slice(0, 3899) + '…' : text, disable_web_page_preview: true }),
       signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) { console.error('Telegram notification failed with status', res.status); return { ok: false, reason: 'status-' + res.status }; }
@@ -42,6 +43,18 @@ const chatAlerts = process.env.TELEGRAM_CHATS !== 'off';
 export function notifyChat(question) {
   if (!chatAlerts || !underHourlyCap()) return Promise.resolve({ ok: false, reason: 'skipped' });
   return sendTelegram(`💬 A visitor is chatting with your AI assistant on ${siteName}\n\n“${clip(question, 400)}”\n\nRead the conversation in /admin → Assistant.`);
+}
+
+// A visitor clearly said they want to hire you (the same check that starts Parker's celebration).
+// Always on when Telegram is configured, with its own small cap so visitor alerts can never crowd it out.
+const hireSent = [];
+export function notifyHire({ question, earlier = [], test = false }) {
+  const t = Date.now();
+  while (hireSent.length && t - hireSent[0] > 3600000) hireSent.shift();
+  if (hireSent.length >= 10) return Promise.resolve({ ok: false, reason: 'skipped' });
+  hireSent.push(t);
+  const context = earlier.length ? `\n\nEarlier in the chat:\n${earlier.map(q => `• ${clip(q, 160)}`).join('\n')}` : '';
+  return sendTelegram(`🔥 Hiring interest on ${siteName}${test ? ' (test from your signed-in admin browser)' : ''}\n\n“${clip(question, 400)}”${context}\n\nParker celebrated and pointed them to Leave a message. Read the full conversation in /admin → Assistant.`);
 }
 
 // ---- Visits -------------------------------------------------------------

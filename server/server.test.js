@@ -92,6 +92,13 @@ test('assistant streams grounded replies, logs conversations, alerts once, valid
   const why=await chatLines({conversation:'conv-hire-002',messages:[{role:'user',content:'Why should I hire him?'}]});
   assert.equal(why.some(l=>l.t==='intent'),false,'server rejects questions even if the model marks them');
   assert.equal(why.filter(l=>l.t==='d').map(l=>l.v).join('').includes('[['),false);
+  // The server's check decides on its own: no model marker needed ("Welcome aboard" never makes the fake model add one).
+  const aboard=await chatLines({conversation:'conv-hire-003',messages:[{role:'user',content:'Loved the demo'},{role:'assistant',content:'Hello there'},{role:'user',content:'Welcome aboard!'}]});
+  assert.deepEqual(aboard.filter(l=>l.t==='intent'),[{t:'intent',v:'hiring_interest'}]);
+  await wait(200);
+  const hireAlerts=sent.filter(m=>/Hiring interest/.test(m.text));
+  assert.equal(hireAlerts.length,2,'one Telegram hiring alert per celebrated conversation');
+  assert.match(hireAlerts[0].text,/offer him a role/);assert.match(hireAlerts[1].text,/Welcome aboard![\s\S]*Earlier in the chat:\n• Loved the demo/);
   const logged=await (await fetch(base+'/api/admin/chats',{headers:{Cookie:cookie}})).json();
   assert.equal(JSON.stringify(logged).includes('[[intent'),false,'marker never stored');
  }finally{await stop(proc);claude.close();tg.close();await rm(dir,{recursive:true,force:true})}
