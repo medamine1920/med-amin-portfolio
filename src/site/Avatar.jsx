@@ -155,7 +155,7 @@ function Party({ still }) {
 // a step whose token is stale can never resume and overwrite the new state.
 const PRIORITY = { seated: 0, idle: 0, welcoming: 1, touring: 2, chatting: 3, celebrating: 4 };
 
-export default function Avatar({ data, first, name = 'Parker', theme = 'dark', hireSignal = 0, open, mood: chatMood, questions, onOpen, onAsk }) {
+export default function Avatar({ data, first, name = 'Parker', theme = 'dark', hireSignal = 0, open, mood: chatMood, questions, onOpen, onAsk, onFit }) {
   const section = useSection();
   const wrap = useRef(null), svgRef = useRef(null);
   const pos = useRef({ x: 0, y: 0 });
@@ -569,6 +569,7 @@ export default function Avatar({ data, first, name = 'Parker', theme = 'dark', h
               </> : kind === 'fit' ? <>
                 <button type="button" className="av-primary" onClick={yes}>Absolutely! 🎉</button>
                 <button type="button" className="av-ask" onClick={() => onAsk('Why is he a great fit for an AI engineering role?')}>Convince me</button>
+                {onFit && <button type="button" className="av-ask" onClick={() => { hush(); onFit(); }}>Check against a job 🎯</button>}
               </> : <>
                 {tourButton}
                 {questions.slice(0, 1).map(q => <button type="button" key={q} className="av-ask" onClick={() => onAsk(q)}>{q}</button>)}

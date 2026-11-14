@@ -15,6 +15,8 @@ const store = {
   set(key, value) { try { sessionStorage.setItem(key, JSON.stringify(value)); } catch { /* private mode */ } },
 };
 
+const JOB_MAX = 5000;   // same limit as the server
+const FIT_THINKING = 'Comparing the job with his work…';
 const THINKING = ['Reading the CV…', 'Checking the projects…', 'Asking the semantic layer…', 'Gathering the facts…'];
 
 // Questions that fit what the visitor is looking at right now.
@@ -62,7 +64,7 @@ function Rich({ text, hosts, onNavigate }) {
   text.split('\n').forEach((raw, i) => {
     const line = raw.trimEnd();
     const bullet = line.match(/^\s*[-•*]\s+(.*)$/);
-    if (bullet) { if (!list) { list = []; blocks.push(<ul key={'ul' + i}>{list}</ul>); } list.push(<li key={i}>{inline(bullet[1], 'l' + i)}</li>); return; }
+    if (bullet) { if (!list) { list = []; blocks.push(<ul key={'ul' + i}>{list}</ul>); } list.push(<li key={i} className={/^(✅|➖)/.test(bullet[1]) ? 'is-mark' : undefined}>{inline(bullet[1], 'l' + i)}</li>); return; }
     list = null;
     if (line.trim()) blocks.push(<p key={i}>{inline(line, 'p' + i)}</p>);
   });
@@ -81,6 +83,7 @@ export default function Assistant({ data, config, theme }) {
   const [busy, setBusy] = useState(false);
   const [thinking, setThinking] = useState(THINKING[0]);
   const [handoff, setHandoff] = useState(null);
+  const [fit, setFit] = useState(null);             // the "Check my fit" paste form: { text, error }
   const [hireSignal, setHireSignal] = useState(0);   // bumps when the server reports clear hiring interest
   const showAvatar = config.avatar !== false;
   const panel = useRef(null), field = useRef(null), launcher = useRef(null), log = useRef(null), abort = useRef(null);
@@ -121,18 +124,19 @@ export default function Assistant({ data, config, theme }) {
   const asked = new Set(messages.filter(m => m.role === 'user').map(m => m.content));
   const chips = sectionQuestions(section, data, config.suggestions).filter(q => q && !asked.has(q)).slice(0, 3);
 
-  const send = useCallback(async (text, base) => {
-    const question = (text || '').trim().slice(0, 600);
+  // job: the text is a pasted job description for a fit check (longer limit, compared against the profile).
+  const send = useCallback(async (text, base, { job = false } = {}) => {
+    const question = (text || '').trim().slice(0, job ? JOB_MAX : 600);
     if (!question || busy) return;
-    setOpen(true); setInput(''); setHandoff(null); setBusy(true); setThinking(THINKING[0]);
+    setOpen(true); if (!job) setInput(''); setHandoff(null); setFit(null); setBusy(true); setThinking(job ? FIT_THINKING : THINKING[0]);
     // Local messages (celebration, "Sent! ✅") stay visible but are never sent to the AI.
-    const shown = [...(base ?? messages).filter(m => !m.pending && !m.error), { role: 'user', content: question }];
+    const shown = [...(base ?? messages).filter(m => !m.pending && !m.error), { role: 'user', content: question, ...(job ? { job: true } : {}) }];
     const history = shown.filter(m => !m.local);
     setMessages([...shown, { role: 'assistant', content: '', pending: true }]);
     const update = fn => setMessages(ms => { const copy = ms.slice(); copy[copy.length - 1] = fn(copy[copy.length - 1]); return copy; });
     const controller = new AbortController(); abort.current = controller;
     try {
-      const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversation, messages: history.slice(-12).map(({ role, content }) => ({ role, content })) }), signal: controller.signal });
+      const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversation, messages: history.slice(-12).map(({ role, content, job }) => ({ role, content, ...(job ? { job: true } : {}) })) }), signal: controller.signal });
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw Error(e.error || 'The assistant is unavailable right now.'); }
       let celebrateHire = false;
       const reader = res.body.getReader(), decoder = new TextDecoder();
@@ -167,13 +171,24 @@ export default function Assistant({ data, config, theme }) {
   }, [busy, conversation, messages]);
 
   // A new conversation gets a new id: its own log in /admin and its own once-per-conversation celebration.
-  const reset = () => { abort.current?.abort(); setConversation(newId()); setMessages([]); setHandoff(null); setBusy(false); store.set('ai-chat', null); };
+  const reset = () => { abort.current?.abort(); setConversation(newId()); setMessages([]); setHandoff(null); setFit(null); setBusy(false); store.set('ai-chat', null); };
   // Return focus to whatever opens the chat: the avatar, or the round launcher when the avatar is off.
   function focusLauncher() { requestAnimationFrame(() => (launcher.current?.offsetParent ? launcher.current : document.querySelector('.av-hit'))?.focus()); }
   const close = () => { setOpen(false); focusLauncher(); };
   const onNavigate = () => { if (matchMedia('(max-width: 640px)').matches) setOpen(false); };
-  const lastQuestion = [...messages].reverse().find(m => m.role === 'user')?.content;
-  const startHandoff = () => setHandoff({ name: '', email: '', message: `Hi ${first}, I was chatting with your assistant${lastQuestion ? ` about: “${lastQuestion}”` : ''}.\n\n`, website: '', status: 'idle', error: '' });
+  const lastUser = [...messages].reverse().find(m => m.role === 'user');
+  const lastQuestion = lastUser?.content;
+  // After a fit check, the message carries the role itself, so he can answer about that exact job.
+  const startHandoff = () => { setFit(null); setHandoff({ name: '', email: '', message: lastUser?.job
+    ? `Hi ${first}, I'd like to talk about this role:\n\n${lastUser.content.slice(0, 2400)}\n\n`
+    : `Hi ${first}, I was chatting with your assistant${lastQuestion ? ` about: “${lastQuestion}”` : ''}.\n\n`, website: '', status: 'idle', error: '' }); };
+  const startFit = () => { setOpen(true); setHandoff(null); setFit(f => f || { text: '', error: '' }); setTimeout(() => document.getElementById('ai-fit-text')?.focus(), 60); };
+  function submitFit(e) {
+    e.preventDefault();
+    const text = fit.text.trim();
+    if (text.length < 80) return setFit({ ...fit, error: 'Paste the full job description: at least a few lines.' });
+    send(text, undefined, { job: true });
+  }
 
   async function submitHandoff(e) {
     e.preventDefault();
@@ -191,7 +206,7 @@ export default function Assistant({ data, config, theme }) {
 
   return (
     <div className={'ai' + (open ? ' is-open' : '')}>
-      {showAvatar && <Avatar data={data} first={first} name={config.name} theme={theme} hireSignal={hireSignal} initials={initials(data.brand)} open={open} mood={busy ? (messages.at(-1)?.content ? 'talking' : 'thinking') : 'listening'} questions={chips} onOpen={() => setOpen(true)} onAsk={q => send(q)} />}
+      {showAvatar && <Avatar data={data} first={first} name={config.name} theme={theme} hireSignal={hireSignal} initials={initials(data.brand)} open={open} mood={busy ? (messages.at(-1)?.content ? 'talking' : 'thinking') : 'listening'} questions={chips} onOpen={() => setOpen(true)} onAsk={q => send(q)} onFit={startFit} />}
       {teaser && !open && !showAvatar && (
         <div className="ai-teaser" role="status">
           <button type="button" className="ai-teaser-close" onClick={() => setTeaser(false)} aria-label="Dismiss">×</button>
@@ -219,11 +234,26 @@ export default function Assistant({ data, config, theme }) {
             <div key={i} className={'ai-msg ' + (m.role === 'user' ? 'is-user' : 'is-assistant') + (m.error ? ' is-error' : '')}>
               {m.pending && !m.content
                 ? <span className="ai-typing"><i /><i /><i /><span>{thinking}</span></span>
-                : m.role === 'user' ? <p>{m.content}</p> : <Rich text={m.content} hosts={hosts} onNavigate={onNavigate} />}
+                : m.role === 'user' ? (m.job
+                  ? <p className="ai-job"><b>📋 Job description</b><span>{m.content.length > 150 ? m.content.slice(0, 150).trimEnd() + '…' : m.content}</span></p>
+                  : <p>{m.content}</p>) : <Rich text={m.content} hosts={hosts} onNavigate={onNavigate} />}
               {m.action === 'contact' && <button type="button" className="ai-primary ai-contact" onClick={startHandoff}>Contact {first}</button>}
-              {m.error && <button type="button" className="ai-retry" onClick={() => send(lastQuestion, messages.slice(0, -2))}>Try again</button>}
+              {m.error && <button type="button" className="ai-retry" onClick={() => send(lastQuestion, messages.slice(0, -2), { job: lastUser?.job })}>Try again</button>}
             </div>
           ))}
+          {fit && (
+            <form className="ai-handoff ai-fit" onSubmit={submitFit}>
+              <p className="ai-handoff-title">🎯 Check {first}'s fit for a job</p>
+              <p className="ai-fit-hint">Paste the job description. {config.name} compares it with {first}'s published work: what matches, with proof, and what the portfolio doesn't show.</p>
+              <textarea id="ai-fit-text" required rows="7" maxLength={JOB_MAX} aria-label="Job description" placeholder="Paste the job title, responsibilities and requirements…" value={fit.text} onChange={e => setFit({ text: e.target.value, error: '' })} />
+              <small className="ai-fit-count">{fit.text.length.toLocaleString('en')} / {JOB_MAX.toLocaleString('en')}</small>
+              {fit.error && <p className="ai-handoff-error" role="alert">{fit.error}</p>}
+              <div className="ai-handoff-actions">
+                <button type="button" className="ai-ghost" onClick={() => setFit(null)}>Cancel</button>
+                <button className="ai-primary" disabled={busy}>Check the fit</button>
+              </div>
+            </form>
+          )}
           {handoff && (
             <form className="ai-handoff" onSubmit={submitHandoff}>
               <p className="ai-handoff-title">Message {first} directly</p>
@@ -240,7 +270,10 @@ export default function Assistant({ data, config, theme }) {
           )}
         </div>
 
-        {!busy && !handoff && chips.length > 0 && <div className="ai-chips ai-chips-bar">{chips.map(q => <button type="button" key={q} onClick={() => send(q)}>{q}</button>)}</div>}
+        {!busy && !handoff && !fit && <div className="ai-chips ai-chips-bar">
+          <button type="button" className="ai-fit-chip" onClick={startFit}>🎯 Check his fit for a job</button>
+          {chips.map(q => <button type="button" key={q} onClick={() => send(q)}>{q}</button>)}
+        </div>}
 
         <form className="ai-input" onSubmit={e => { e.preventDefault(); send(input); }}>
           <textarea ref={field} rows="1" maxLength="600" placeholder={`Ask about ${first}'s projects, skills, availability…`} aria-label="Your question" value={input}

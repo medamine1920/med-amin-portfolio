@@ -6,7 +6,7 @@ import { resolve, join, relative, isAbsolute, sep, extname } from 'node:path';
 import { randomUUID, randomBytes, createHmac, scryptSync, timingSafeEqual } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { notifyChat, notifyHire, notifyMessage, notifyVisit, sendTelegram, startDigest, notifySettings, isBot, device, referrerHost, visitorId } from './notify.js';
-import { assistantAvailable, assistantModel, assistantProvider, assistantSettings, cleanChatRequest, createIntentFilter, validateHiringIntent, dailyLimit, demoMode, streamReply } from './assistant.js';
+import { assistantAvailable, assistantModel, assistantProvider, assistantSettings, cleanChatRequest, createIntentFilter, jobText, validateHiringIntent, dailyLimit, demoMode, streamReply } from './assistant.js';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const dataDir = resolve(process.env.DATA_DIR || join(root, 'data'));
@@ -38,7 +38,7 @@ const seed = JSON.parse(await readFile(join(root,'server','seed.json'),'utf8'));
 for (const kind of ['published','draft']) db.prepare('INSERT OR IGNORE INTO documents(kind,content,revision,updated_at) VALUES(?,?,1,?)').run(kind,JSON.stringify(seed),new Date().toISOString());
 const published = () => JSON.parse(db.prepare("SELECT content FROM documents WHERE kind='published'").get().content);
 const drafts = () => db.prepare("SELECT content,revision,updated_at FROM documents WHERE kind='draft'").get();
-const loginAttempts = new Map(), contactAttempts = new Map(), viewAttempts = new Map(), chatAttempts = new Map(), chatDaily = new Map();
+const loginAttempts = new Map(), contactAttempts = new Map(), viewAttempts = new Map(), chatAttempts = new Map(), chatDaily = new Map(), fitDaily = new Map();
 const chatBudget = { day: '', used: 0 };
 const celebrated = new Set(); // conversations that already got the hiring celebration
 const trustProxy = process.env.TRUST_PROXY === 'true';
@@ -115,27 +115,28 @@ async function chat(req,res){
  if(!assistantAvailable||!assistantSettings(published()).enabled)return fail(res,503,'The assistant is not available right now.');
  const ip=clientKey(req);
  if(!rate(chatAttempts,ip,20,600000)||!rate(chatDaily,ip,80,86400000))return fail(res,429,'That is a lot of questions! Please try again a bit later, or leave a message instead.');
- const {conversation,messages}=cleanChatRequest(await parseJson(req,40000));
+ const {conversation,messages,job}=cleanChatRequest(await parseJson(req,40000));
+ if(job&&!rate(fitDaily,ip,5,86400000))return fail(res,429,'That is the limit of job checks for today. Leave a message with the role and he will reply himself!');
  const day=now().slice(0,10);if(chatBudget.day!==day){chatBudget.day=day;chatBudget.used=0}
  if(chatBudget.used>=dailyLimit)return fail(res,429,'The assistant is resting for today. Please leave a message instead.');
  chatBudget.used++;
- const question=messages.at(-1).content,insert=db.prepare('INSERT INTO chats(conversation,role,content,created_at) VALUES(?,?,?,?)');
+ const question=job?'[Job description] '+jobText(messages.at(-1).content):messages.at(-1).content,insert=db.prepare('INSERT INTO chats(conversation,role,content,created_at) VALUES(?,?,?,?)');
  const firstTurn=!db.prepare('SELECT 1 FROM chats WHERE conversation=? LIMIT 1').get(conversation);
  insert.run(conversation,'user',question,now());
- if(firstTurn&&!session(req))notifyChat(question);
+ if(firstTurn&&!session(req))notifyChat(job?'📋 Fit check for a job: '+question.slice(18,400):question);
  headers(res,200,{'Content-Type':'application/x-ndjson; charset=utf-8','Cache-Control':'no-store','X-Accel-Buffering':'no'});
  const ac=new AbortController();res.on('close',()=>{if(!res.writableEnded)ac.abort()});
  const send=o=>res.write(JSON.stringify(o)+'\n');
  try{
   // Intent markers are stripped before anything reaches the visitor or the log.
   const filter=createIntentFilter(v=>send({t:'d',v}));
-  const {stopReason}=await streamReply({content:published(),messages,onText:v=>filter.push(v),signal:ac.signal});
+  const {stopReason}=await streamReply({content:published(),messages,job,onText:v=>filter.push(v),signal:ac.signal});
   let {text}=filter.finish();
   if(stopReason==='refusal'&&!text.trim()){text='Sorry, I can’t help with that one. Ask me about the projects, experience or availability, or leave a message!';send({t:'d',v:text})}
   if(text)insert.run(conversation,'assistant',text,now());
   // Celebrate clear, affirmative hiring interest once per conversation. The server's check decides; the model's
   // marker is optional (smaller models often forget it) and can never trigger a celebration on its own.
-  if(validateHiringIntent(question)&&!celebrated.has(conversation)){
+  if(!job&&validateHiringIntent(question)&&!celebrated.has(conversation)){
    celebrated.add(conversation);if(celebrated.size>5000)celebrated.delete(celebrated.values().next().value);
    send({t:'intent',v:'hiring_interest'});
    notifyHire({question,earlier:messages.slice(0,-1).filter(m=>m.role==='user').slice(-3).map(m=>m.content),test:!!session(req)});

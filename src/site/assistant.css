@@ -39,6 +39,7 @@
 .site .ai-msg { max-width: 88%; padding: 10px 13px; border-radius: 16px; font-size: 0.92rem; line-height: 1.55; animation: ai-msg 0.35s var(--ease) both; overflow-wrap: anywhere; }
 .site .ai-msg p + p, .site .ai-msg p + ul, .site .ai-msg ul + p { margin-top: 8px; }
 .site .ai-msg ul { display: grid; gap: 4px; padding-left: 18px; list-style: disc; }
+.site .ai-msg li.is-mark { list-style: none; margin-left: -18px; }
 .site .ai-msg.is-assistant { align-self: flex-start; background: var(--ink-3); border: 1px solid var(--line); border-bottom-left-radius: 6px; }
 .site .ai-msg.is-user { align-self: flex-end; background: var(--mint); color: var(--on-mint); border-bottom-right-radius: 6px; }
 .site .ai-msg.is-error { border-color: rgb(243 140 102 / 0.5); color: var(--danger); }
@@ -57,6 +58,13 @@
 .site .ai-handoff input, .site .ai-handoff textarea { width: 100%; font: 400 0.9rem var(--body); color: var(--text); background: var(--field-bg); border: 1px solid var(--line-strong); border-radius: 10px; padding: 9px 11px; outline: none; resize: vertical; }
 .site .ai-handoff input:focus, .site .ai-handoff textarea:focus { border-color: var(--mint); }
 .site .ai-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.site .ai-fit-hint { font-size: 0.82rem; line-height: 1.45; color: var(--muted); }
+.site .ai-fit textarea { min-height: 150px; max-height: 40vh; }
+.site .ai-fit-count { justify-self: end; font: 500 0.72rem var(--mono); color: var(--muted); }
+.site .ai-chips .ai-fit-chip { border-color: rgb(243 183 102 / 0.55); background: rgb(243 183 102 / 0.12); font-weight: 600; }
+.site .ai-chips .ai-fit-chip:hover { border-color: var(--amber); background: rgb(243 183 102 / 0.22); }
+.site .ai-job { display: grid; gap: 4px; }
+.site .ai-job span { font-size: 0.82rem; opacity: 0.85; }
 .site .ai-handoff-error { color: var(--danger); font-size: 0.82rem; }
 .site .ai-handoff-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .site .ai-primary, .site .ai-ghost { font: 600 0.85rem var(--body); padding: 8px 14px; border-radius: 999px; cursor: pointer; }
@@ -85,6 +93,10 @@
 
 /* Phones: round button, full-screen chat. */
 @media (max-width: 640px) {
+  /* One swipeable row of suggestions, so the conversation keeps the room. */
+  .site .ai-chips-bar { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+  .site .ai-chips-bar::-webkit-scrollbar { display: none; }
+  .site .ai-chips-bar button { flex: none; white-space: nowrap; }
   .site .ai { right: 14px; bottom: 14px; }
   .site .ai-launcher { padding: 5px; }
   .site .ai-launcher-text { display: none; }

@@ -48,6 +48,8 @@ test('questions, hypotheticals, quotes and negatives are rejected', () => {
     'What does he work on?',
     'hire',
     'Can we hire him?',
+    'We are looking to hire an AI engineer',
+    'We want to hire someone with RAG experience',
     'We could hire him',
     'We might hire him next year',
     'If he passes, we will hire him',
